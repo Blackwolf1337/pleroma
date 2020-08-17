@@ -24,7 +24,7 @@ defmodule Pleroma.Web.MastodonAPI.WebsocketHandler do
          sec_websocket <- :cowboy_req.header("sec-websocket-protocol", req, nil),
          access_token <- Map.get(params, "access_token"),
          {:ok, user} <- authenticate_request(access_token, sec_websocket),
-         {:ok, topic} <- Streamer.get_topic(Map.get(params, "stream"), user, params) do
+         {:ok, topic} <- get_topic(Map.get(params, "stream"), user, params) do
       req =
         if sec_websocket do
           :cowboy_req.set_resp_header("sec-websocket-protocol", sec_websocket, req)
@@ -54,7 +54,8 @@ defmodule Pleroma.Web.MastodonAPI.WebsocketHandler do
       }, topic #{state.topic}"
     )
 
-    Streamer.add_socket(state.topic, state.user)
+    if state.topic != nil, do: Streamer.add_socket(state.topic, state.user)
+
     {:ok, %{state | timer: timer()}}
   end
 
@@ -64,7 +65,21 @@ defmodule Pleroma.Web.MastodonAPI.WebsocketHandler do
     {:ok, %{state | timer: timer()}}
   end
 
-  # We never receive messages.
+  def websocket_handle({:text, data}, state) do
+    with {:ok, payload} <- Poison.decode(data),
+         {:ok, state} <- handle_message(payload, state) do
+      {:ok, state}
+    else
+      {:error, err} when is_binary(err) ->
+        Logger.debug("#{__MODULE__} errored handling message: #{err}")
+        {:ok, state}
+
+      {:error, err} ->
+        Logger.debug("#{__MODULE__} errored handling message: #{inspect(err)}")
+        {:ok, state}
+    end
+  end
+
   def websocket_handle(frame, state) do
     Logger.error("#{__MODULE__} received frame: #{inspect(frame)}")
     {:ok, state}
@@ -101,12 +116,42 @@ defmodule Pleroma.Web.MastodonAPI.WebsocketHandler do
   def terminate(reason, _req, state) do
     Logger.debug(
       "#{__MODULE__} terminating websocket connection for user #{
-        (state.user || %{id: "anonymous"}).id
+        (state[:user] || %{id: "anonymous"}).id
       }, topic #{state.topic || "?"}: #{inspect(reason)}"
     )
 
-    Streamer.remove_socket(state.topic)
+    if state.topic != nil, do: Streamer.remove_socket(state.topic)
+
     :ok
+  end
+
+  @spec handle_message(payload :: map, state :: map) ::
+          {:ok, state :: map} | {:error, String.t()}
+  defp handle_message(payload, state)
+
+  defp handle_message(%{"type" => "subscribe", "stream" => topic} = payload, state) do
+    params = Map.drop(payload, ["type", "stream"])
+
+    case Streamer.get_topic(topic, state.user, params) do
+      {:ok, topic} -> Streamer.add_socket(topic, params)
+      {:error, reason} -> Logger.debug("#{__MODULE__} subscribe error: #{reason}")
+    end
+
+    {:ok, state}
+  end
+
+  defp handle_message(%{"type" => "unsubscribe", "stream" => topic}, state) do
+    Streamer.remove_socket(topic)
+
+    {:ok, state}
+  end
+
+  defp handle_message(%{"type" => typ} = payload, _state) do
+    {:error, "Unknown message type '#{typ}': #{inspect(payload)}"}
+  end
+
+  defp handle_message(payload, _) do
+    {:error, "Unknown message: #{inspect(payload)}"}
   end
 
   # Public streams without authentication.
@@ -127,6 +172,16 @@ defmodule Pleroma.Web.MastodonAPI.WebsocketHandler do
     end
   end
 
+  @spec get_topic(name :: String.t() | nil, User.t(), map) :: {:ok, String.t()} | {:error, atom()}
+  defp get_topic(nil, _, _) do
+    {:ok, nil}
+  end
+
+  defp get_topic(topic, user, params) do
+    Streamer.get_topic(topic, user, params)
+  end
+
+  @spec timer() :: reference()
   defp timer do
     Process.send_after(self(), :tick, @tick)
   end
