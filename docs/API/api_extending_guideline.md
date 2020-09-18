@@ -38,13 +38,13 @@ This document describes these endpoint groups of client API:
 
 2. New parameters taken by existing endpoint are REQUIRED to be OPTIONAL.
 
-3. Parameters of existing versioned endpoint MUST NOT be removed or change their data type.
+3. Parameters of existing versioned endpoint MUST NOT be removed or have their data type changed.
 
 ### Schema extension requirements
 
 0. Objects returned by MastoAPI MUST be extended only through `"pleroma"` object.
 
-1. Fields of objects returned by MastoAPI or versioned Pleroma API MUST NOT be removed or change their data type. (exception: Flake IDs)
+1. Fields of objects returned by MastoAPI or versioned Pleroma API MUST NOT be removed or have their data type changed. (exception: Flake IDs)
 
 ### Issues
 
