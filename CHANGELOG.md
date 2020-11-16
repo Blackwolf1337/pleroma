@@ -14,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Allow users to remove their emails if instance does not need email to register
 
 ### Added
+- Support for Image activities, namely from Hubzilla
 
 ### Fixed
 - Subscription(Bell) Notifications: Don't create from Pipeline Ingested replies
