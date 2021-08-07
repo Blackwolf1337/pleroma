@@ -6,8 +6,8 @@ defmodule Pleroma.Web.ActivityPub.MRF.AntiFollowbotPolicyTest do
   use Pleroma.DataCase, async: true
   import Pleroma.Factory
 
-  alias Pleroma.Web.ActivityPub.MRF.AntiFollowbotPolicy
   alias Pleroma.User
+  alias Pleroma.Web.ActivityPub.MRF.AntiFollowbotPolicy
 
   describe "blocking based on attributes" do
     test "matches followbots by nickname" do
