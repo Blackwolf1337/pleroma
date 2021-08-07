@@ -58,10 +58,10 @@ defmodule Pleroma.Web.ActivityPub.MRF.AntiFollowbotPolicy do
 
   defp determine_if_followbot(_), do: 0.0
 
-  defp bot_allowed?(%{"object" => target}) do
-    %User{bio: bio} = normalize_by_ap_id(target)
+  defp bot_allowed?(%{"object" => target}, bot_actor) do
+    %User{bio: bio} = user = normalize_by_ap_id(target)
 
-    bio |> String.match?(~r/#yesbot/iu)
+    String.match?(bio, ~r/#yesbot/iu) || User.following?(user, bot_actor)
   end
 
   @impl true
@@ -71,7 +71,7 @@ defmodule Pleroma.Web.ActivityPub.MRF.AntiFollowbotPolicy do
     score = determine_if_followbot(actor)
 
     # TODO: scan biography data for keywords and score it somehow.
-    if score < 0.8 || bot_allowed?(message) do
+    if score < 0.8 || bot_allowed?(message, actor) do
       {:ok, message}
     else
       {:reject, "[AntiFollowbotPolicy] Scored #{actor_id} as #{score}"}

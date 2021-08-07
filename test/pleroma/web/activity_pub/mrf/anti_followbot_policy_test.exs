@@ -7,6 +7,7 @@ defmodule Pleroma.Web.ActivityPub.MRF.AntiFollowbotPolicyTest do
   import Pleroma.Factory
 
   alias Pleroma.Web.ActivityPub.MRF.AntiFollowbotPolicy
+  alias Pleroma.User
 
   describe "blocking based on attributes" do
     test "matches followbots by nickname" do
@@ -71,9 +72,11 @@ defmodule Pleroma.Web.ActivityPub.MRF.AntiFollowbotPolicyTest do
       {:ok, _} = AntiFollowbotPolicy.filter(message)
     end
 
-    test "service accounts if the target follows the service accounts" do
+    test "bots if the target follows the bots" do
       actor = insert(:user, %{actor_type: "Service"})
       target = insert(:user)
+
+      User.follow(target, actor)
 
       message = %{
         "@context" => "https://www.w3.org/ns/activitystreams",
@@ -86,7 +89,7 @@ defmodule Pleroma.Web.ActivityPub.MRF.AntiFollowbotPolicyTest do
       {:ok, _} = AntiFollowbotPolicy.filter(message)
     end
 
-    test "service accounts if the target has #yesbot in their bio" do
+    test "bots if the target has #yesbot in their bio" do
       actor = insert(:user, %{actor_type: "Service"})
       target = insert(:user, %{bio: "I love to be followed\n #yesbot"})
 
