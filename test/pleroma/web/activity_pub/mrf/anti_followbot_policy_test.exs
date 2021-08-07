@@ -38,6 +38,21 @@ defmodule Pleroma.Web.ActivityPub.MRF.AntiFollowbotPolicyTest do
 
       assert {:reject, "[AntiFollowbotPolicy]" <> _} = AntiFollowbotPolicy.filter(message)
     end
+
+    test "matches followbots by actor_type" do
+      actor = insert(:user, %{actor_type: "Service"})
+      target = insert(:user)
+
+      message = %{
+        "@context" => "https://www.w3.org/ns/activitystreams",
+        "type" => "Follow",
+        "actor" => actor.ap_id,
+        "object" => target.ap_id,
+        "id" => "https://example.com/activities/1234"
+      }
+
+      assert {:reject, "[AntiFollowbotPolicy]" <> _} = AntiFollowbotPolicy.filter(message)
+    end
   end
 
   test "it allows non-followbots" do

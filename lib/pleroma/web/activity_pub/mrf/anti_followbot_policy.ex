@@ -24,7 +24,7 @@ defmodule Pleroma.Web.ActivityPub.MRF.AntiFollowbotPolicy do
   defp score_displayname("fedibot"), do: 1.0
   defp score_displayname(_), do: 0.0
 
-  defp determine_if_followbot(%User{nickname: nickname, name: displayname}) do
+  defp determine_if_followbot(%User{nickname: nickname, name: displayname, actor_type: actor_type}) do
     # nickname will be a binary string except when following a relay
     nick_score =
       if is_binary(nickname) do
@@ -45,7 +45,15 @@ defmodule Pleroma.Web.ActivityPub.MRF.AntiFollowbotPolicy do
         0.0
       end
 
-    nick_score + name_score
+    # actor_type "Service" is a Bot account
+    actor_type_score =
+      if actor_type == "Service" do
+        1.0
+      else
+        0.0
+      end
+
+    nick_score + name_score + actor_type_score
   end
 
   defp determine_if_followbot(_), do: 0.0
