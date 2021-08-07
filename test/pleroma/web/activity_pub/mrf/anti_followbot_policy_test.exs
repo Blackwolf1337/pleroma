@@ -55,19 +55,51 @@ defmodule Pleroma.Web.ActivityPub.MRF.AntiFollowbotPolicyTest do
     end
   end
 
-  test "it allows non-followbots" do
-    actor = insert(:user)
-    target = insert(:user)
+  describe "it allows" do
+    test "non-followbots" do
+      actor = insert(:user)
+      target = insert(:user)
 
-    message = %{
-      "@context" => "https://www.w3.org/ns/activitystreams",
-      "type" => "Follow",
-      "actor" => actor.ap_id,
-      "object" => target.ap_id,
-      "id" => "https://example.com/activities/1234"
-    }
+      message = %{
+        "@context" => "https://www.w3.org/ns/activitystreams",
+        "type" => "Follow",
+        "actor" => actor.ap_id,
+        "object" => target.ap_id,
+        "id" => "https://example.com/activities/1234"
+      }
 
-    {:ok, _} = AntiFollowbotPolicy.filter(message)
+      {:ok, _} = AntiFollowbotPolicy.filter(message)
+    end
+
+    test "service accounts if the target follows the service accounts" do
+      actor = insert(:user, %{actor_type: "Service"})
+      target = insert(:user)
+
+      message = %{
+        "@context" => "https://www.w3.org/ns/activitystreams",
+        "type" => "Follow",
+        "actor" => actor.ap_id,
+        "object" => target.ap_id,
+        "id" => "https://example.com/activities/1234"
+      }
+
+      {:ok, _} = AntiFollowbotPolicy.filter(message)
+    end
+
+    test "service accounts if the target has #yesbot in their bio" do
+      actor = insert(:user, %{actor_type: "Service"})
+      target = insert(:user, %{bio: "I love to be followed\n #yesbot"})
+
+      message = %{
+        "@context" => "https://www.w3.org/ns/activitystreams",
+        "type" => "Follow",
+        "actor" => actor.ap_id,
+        "object" => target.ap_id,
+        "id" => "https://example.com/activities/1234"
+      }
+
+      {:ok, _} = AntiFollowbotPolicy.filter(message)
+    end
   end
 
   test "it gracefully handles nil display names" do
