@@ -169,7 +169,8 @@ defmodule Pleroma.ApplicationRequirements do
       check_filter(Pleroma.Upload.Filter.Mogrifun, "mogrify"),
       check_filter(Pleroma.Upload.Filter.AnalyzeMetadata, "mogrify"),
       check_filter(Pleroma.Upload.Filter.AnalyzeMetadata, "convert"),
-      check_filter(Pleroma.Upload.Filter.AnalyzeMetadata, "ffprobe")
+      check_filter(Pleroma.Upload.Filter.AnalyzeMetadata, "ffprobe"),
+      check_filter(Pleroma.Upload.Filter.TranscodeVideo, "ffmpeg"),
     ]
 
     preview_proxy_commands_status =
