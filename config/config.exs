@@ -855,7 +855,7 @@ config :pleroma, Pleroma.User.Backup,
 config :pleroma, ConcurrentLimiter, [
   {Pleroma.Web.RichMedia.Helpers, [max_running: 5, max_waiting: 5]},
   {Pleroma.Web.ActivityPub.MRF.MediaProxyWarmingPolicy, [max_running: 5, max_waiting: 5]},
-  {Pleroma.Search, [max_running: 20, max_waiting: 50]}
+  {Pleroma.Search, [max_running: 30, max_waiting: 50]}
 ]
 
 config :pleroma, :telemetry,
