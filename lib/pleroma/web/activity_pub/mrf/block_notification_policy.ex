@@ -25,36 +25,39 @@ defmodule Pleroma.Web.ActivityPub.MRF.BlockNotificationPolicy do
 
   defp is_local(actor, recipient) do
     cond do
-      actor.local     -> true
+      actor.local -> true
       recipient.local -> true
-      true            -> false
+      true -> false
     end
   end
 
   @impl true
   def filter(message) do
-
     with {true, action, object} <- is_block_or_unblock(message),
          %User{} = actor <- User.get_cached_by_ap_id(message["actor"]),
          %User{} = recipient <- User.get_cached_by_ap_id(object),
          true <- is_local(actor, recipient),
          false <- User.blocks_user?(recipient, actor) do
-
       bot_user = Pleroma.Config.get([:mrf_block_notification_policy, :user])
 
       replacements = %{
-        "actor"  => actor.nickname,
-	"target" => recipient.nickname,
-	"action" => action
+        "actor" => actor.nickname,
+        "target" => recipient.nickname,
+        "action" => action
       }
 
-      msg = Regex.replace(~r/{([a-z]+)?}/, Pleroma.Config.get([:mrf_block_notification_policy, :message]), fn _, match ->
-        replacements[match]
-      end)
+      msg =
+        Regex.replace(
+          ~r/{([a-z]+)?}/,
+          Pleroma.Config.get([:mrf_block_notification_policy, :message]),
+          fn _, match ->
+            replacements[match]
+          end
+        )
 
       _reply =
         CommonAPI.post(User.get_by_nickname(bot_user), %{
-          status:     msg,
+          status: msg,
           visibility: Pleroma.Config.get([:mrf_block_notification_policy, :visibility])
         })
     end
@@ -64,8 +67,7 @@ defmodule Pleroma.Web.ActivityPub.MRF.BlockNotificationPolicy do
 
   @impl true
   def describe do
-    mrf_block_notification_policy =
-      Config.get(:mrf_block_notification_policy)
+    mrf_block_notification_policy = Config.get(:mrf_block_notification_policy)
 
     {:ok, %{mrf_block_notification_policy: mrf_block_notification_policy}}
   end
@@ -81,8 +83,9 @@ defmodule Pleroma.Web.ActivityPub.MRF.BlockNotificationPolicy do
           key: :message,
           type: :string,
           label: "Message",
-          description: "The message to send when someone is blocked or unblocked; use {actor}, {target}, and {action} variables",
-	  suggestions: ["@{actor} {action} @{recipient}"]
+          description:
+            "The message to send when someone is blocked or unblocked; use {actor}, {target}, and {action} variables",
+          suggestions: ["@{actor} {action} @{recipient}"]
         },
         %{
           key: :user,
@@ -95,10 +98,9 @@ defmodule Pleroma.Web.ActivityPub.MRF.BlockNotificationPolicy do
           type: :string,
           label: "Visibility",
           description: "The visibility of block messages",
-	  suggestions: ["public", "unlisted", "private", "direct"]
+          suggestions: ["public", "unlisted", "private", "direct"]
         }
       ]
     }
   end
 end
-
