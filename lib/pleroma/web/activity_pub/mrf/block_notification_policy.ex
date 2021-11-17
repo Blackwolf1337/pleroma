@@ -6,9 +6,9 @@ defmodule Pleroma.Web.ActivityPub.MRF.BlockNotificationPolicy do
   @moduledoc "Notify local users upon remote block and unblock."
   @behaviour Pleroma.Web.ActivityPub.MRF.Policy
 
+  alias Pleroma.Config
   alias Pleroma.User
   alias Pleroma.Web.CommonAPI
-  alias Pleroma.Config
 
   require Logger
 
