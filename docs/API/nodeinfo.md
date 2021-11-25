@@ -173,7 +173,9 @@
    "usage":{
       "localPosts":27,
       "users":{
-         "total":5
+         "activeHalfyear":129,
+         "activeMonth":70,
+         "total":235
       }
    },
    "version":"2.0"
@@ -332,7 +334,9 @@
    "usage":{
       "localPosts":27,
       "users":{
-         "total":5
+         "activeHalfyear":129,
+         "activeMonth":70,
+         "total":235
       }
    },
    "version":"2.1"
