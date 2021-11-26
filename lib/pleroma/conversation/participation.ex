@@ -1,5 +1,5 @@
 # Pleroma: A lightweight social networking server
-# Copyright © 2017-2019 Pleroma Authors <https://pleroma.social/>
+# Copyright © 2017-2021 Pleroma Authors <https://pleroma.social/>
 # SPDX-License-Identifier: AGPL-3.0-only
 
 defmodule Pleroma.Conversation.Participation do
@@ -63,21 +63,10 @@ defmodule Pleroma.Conversation.Participation do
     end
   end
 
-  def mark_as_read(participation) do
-    __MODULE__
-    |> where(id: ^participation.id)
-    |> update(set: [read: true])
-    |> select([p], p)
-    |> Repo.update_all([])
-    |> case do
-      {1, [participation]} ->
-        participation = Repo.preload(participation, :user)
-        User.set_unread_conversation_count(participation.user)
-        {:ok, participation}
-
-      error ->
-        error
-    end
+  def mark_as_read(%__MODULE__{} = participation) do
+    participation
+    |> change(read: true)
+    |> Repo.update()
   end
 
   def mark_all_as_read(%User{local: true} = user, %User{} = target_user) do
@@ -93,7 +82,6 @@ defmodule Pleroma.Conversation.Participation do
     |> update([p], set: [read: true])
     |> Repo.update_all([])
 
-    {:ok, user} = User.set_unread_conversation_count(user)
     {:ok, user, []}
   end
 
@@ -108,7 +96,6 @@ defmodule Pleroma.Conversation.Participation do
       |> select([p], p)
       |> Repo.update_all([])
 
-    {:ok, user} = User.set_unread_conversation_count(user)
     {:ok, user, participations}
   end
 
@@ -128,24 +115,19 @@ defmodule Pleroma.Conversation.Participation do
     |> Pleroma.Pagination.fetch_paginated(params)
   end
 
-  def restrict_recipients(query, user, %{"recipients" => user_ids}) do
-    user_ids =
+  def restrict_recipients(query, user, %{recipients: user_ids}) do
+    user_binary_ids =
       [user.id | user_ids]
       |> Enum.uniq()
-      |> Enum.reduce([], fn user_id, acc ->
-        case FlakeId.Ecto.CompatType.dump(user_id) do
-          {:ok, user_id} -> [user_id | acc]
-          _ -> acc
-        end
-      end)
+      |> User.binary_id()
 
     conversation_subquery =
       __MODULE__
       |> group_by([p], p.conversation_id)
       |> having(
         [p],
-        count(p.user_id) == ^length(user_ids) and
-          fragment("array_agg(?) @> ?", p.user_id, ^user_ids)
+        count(p.user_id) == ^length(user_binary_ids) and
+          fragment("array_agg(?) @> ?", p.user_id, ^user_binary_ids)
       )
       |> select([p], %{id: p.conversation_id})
 
@@ -167,17 +149,20 @@ defmodule Pleroma.Conversation.Participation do
     for_user(user, params)
     |> Enum.map(fn participation ->
       activity_id =
-        ActivityPub.fetch_latest_activity_id_for_context(participation.conversation.ap_id, %{
-          "user" => user,
-          "blocking_user" => user
-        })
+        ActivityPub.fetch_latest_direct_activity_id_for_context(
+          participation.conversation.ap_id,
+          %{
+            user: user,
+            blocking_user: user
+          }
+        )
 
       %{
         participation
         | last_activity_id: activity_id
       }
     end)
-    |> Enum.filter(& &1.last_activity_id)
+    |> Enum.reject(&is_nil(&1.last_activity_id))
   end
 
   def get(_, _ \\ [])
@@ -222,11 +207,21 @@ defmodule Pleroma.Conversation.Participation do
     {:ok, Repo.preload(participation, :recipients, force: true)}
   end
 
+  @spec unread_count(User.t()) :: integer()
+  def unread_count(%User{id: user_id}) do
+    from(q in __MODULE__, where: q.user_id == ^user_id and q.read == false)
+    |> Repo.aggregate(:count, :id)
+  end
+
   def unread_conversation_count_for_user(user) do
     from(p in __MODULE__,
       where: p.user_id == ^user.id,
       where: not p.read,
       select: %{count: count(p.id)}
     )
+  end
+
+  def delete(%__MODULE__{} = participation) do
+    Repo.delete(participation)
   end
 end

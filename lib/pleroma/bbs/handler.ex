@@ -1,5 +1,5 @@
 # Pleroma: A lightweight social networking server
-# Copyright © 2017-2019 Pleroma Authors <https://pleroma.social/>
+# Copyright © 2017-2021 Pleroma Authors <https://pleroma.social/>
 # SPDX-License-Identifier: AGPL-3.0-only
 
 defmodule Pleroma.BBS.Handler do
@@ -19,9 +19,7 @@ defmodule Pleroma.BBS.Handler do
   def on_connect(username, ip, port, method) do
     Logger.debug(fn ->
       """
-      Incoming SSH shell #{inspect(self())} requested for #{username} from #{inspect(ip)}:#{
-        inspect(port)
-      } using #{inspect(method)}
+      Incoming SSH shell #{inspect(self())} requested for #{username} from #{inspect(ip)}:#{inspect(port)} using #{inspect(method)}
       """
     end)
   end
@@ -66,7 +64,7 @@ defmodule Pleroma.BBS.Handler do
 
     with %Activity{} <- Activity.get_by_id(activity_id),
          {:ok, _activity} <-
-           CommonAPI.post(user, %{"status" => rest, "in_reply_to_status_id" => activity_id}) do
+           CommonAPI.post(user, %{status: rest, in_reply_to_status_id: activity_id}) do
       IO.puts("Replied!")
     else
       _e -> IO.puts("Could not reply...")
@@ -78,7 +76,7 @@ defmodule Pleroma.BBS.Handler do
   def handle_command(%{user: user} = state, "p " <> text) do
     text = String.trim(text)
 
-    with {:ok, _activity} <- CommonAPI.post(user, %{"status" => text}) do
+    with {:ok, _activity} <- CommonAPI.post(user, %{status: text}) do
       IO.puts("Posted!")
     else
       _e -> IO.puts("Could not post...")
@@ -92,10 +90,10 @@ defmodule Pleroma.BBS.Handler do
 
     params =
       %{}
-      |> Map.put("type", ["Create"])
-      |> Map.put("blocking_user", user)
-      |> Map.put("muting_user", user)
-      |> Map.put("user", user)
+      |> Map.put(:type, ["Create"])
+      |> Map.put(:blocking_user, user)
+      |> Map.put(:muting_user, user)
+      |> Map.put(:user, user)
 
     activities =
       [user.ap_id | Pleroma.User.following(user)]

@@ -1,5 +1,5 @@
 # Pleroma: A lightweight social networking server
-# Copyright © 2017-2019 Pleroma Authors <https://pleroma.social/>
+# Copyright © 2017-2021 Pleroma Authors <https://pleroma.social/>
 # SPDX-License-Identifier: AGPL-3.0-only
 
 defmodule Pleroma.Tests.ObanHelpers do
@@ -7,16 +7,23 @@ defmodule Pleroma.Tests.ObanHelpers do
   Oban test helpers.
   """
 
+  require Ecto.Query
+
   alias Pleroma.Repo
+
+  def wipe_all do
+    Repo.delete_all(Oban.Job)
+  end
 
   def perform_all do
     Oban.Job
+    |> Ecto.Query.where(state: "available")
     |> Repo.all()
     |> perform()
   end
 
   def perform(%Oban.Job{} = job) do
-    res = apply(String.to_existing_atom("Elixir." <> job.worker), :perform, [job.args, job])
+    res = apply(String.to_existing_atom("Elixir." <> job.worker), :perform, [job])
     Repo.delete(job)
     res
   end

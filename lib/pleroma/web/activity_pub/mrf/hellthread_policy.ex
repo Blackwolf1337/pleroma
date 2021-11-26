@@ -1,5 +1,5 @@
 # Pleroma: A lightweight social networking server
-# Copyright © 2017-2019 Pleroma Authors <https://pleroma.social/>
+# Copyright © 2017-2021 Pleroma Authors <https://pleroma.social/>
 # SPDX-License-Identifier: AGPL-3.0-only
 
 defmodule Pleroma.Web.ActivityPub.MRF.HellthreadPolicy do
@@ -9,12 +9,14 @@ defmodule Pleroma.Web.ActivityPub.MRF.HellthreadPolicy do
 
   @moduledoc "Block messages with too much mentions (configurable)"
 
-  @behaviour Pleroma.Web.ActivityPub.MRF
+  @behaviour Pleroma.Web.ActivityPub.MRF.Policy
 
   defp delist_message(message, threshold) when threshold > 0 do
     follower_collection = User.get_cached_by_ap_id(message["actor"]).follower_address
+    to = message["to"] || []
+    cc = message["cc"] || []
 
-    follower_collection? = Enum.member?(message["to"] ++ message["cc"], follower_collection)
+    follower_collection? = Enum.member?(to ++ cc, follower_collection)
 
     message =
       case get_recipient_count(message) do
@@ -41,7 +43,7 @@ defmodule Pleroma.Web.ActivityPub.MRF.HellthreadPolicy do
   defp reject_message(message, threshold) when threshold > 0 do
     with {_, recipients} <- get_recipient_count(message) do
       if recipients > threshold do
-        {:reject, nil}
+        {:reject, "[HellthreadPolicy] #{recipients} recipients is over the limit of #{threshold}"}
       else
         {:ok, message}
       end
@@ -71,7 +73,8 @@ defmodule Pleroma.Web.ActivityPub.MRF.HellthreadPolicy do
   end
 
   @impl true
-  def filter(%{"type" => "Create"} = message) do
+  def filter(%{"type" => "Create", "object" => %{"type" => object_type}} = message)
+      when object_type in ~w{Note Article} do
     reject_threshold =
       Pleroma.Config.get(
         [:mrf_hellthread, :reject_threshold],
@@ -84,7 +87,7 @@ defmodule Pleroma.Web.ActivityPub.MRF.HellthreadPolicy do
          {:ok, message} <- delist_message(message, delist_threshold) do
       {:ok, message}
     else
-      _e -> {:reject, nil}
+      e -> e
     end
   end
 
@@ -94,4 +97,31 @@ defmodule Pleroma.Web.ActivityPub.MRF.HellthreadPolicy do
   @impl true
   def describe,
     do: {:ok, %{mrf_hellthread: Pleroma.Config.get(:mrf_hellthread) |> Enum.into(%{})}}
+
+  @impl true
+  def config_description do
+    %{
+      key: :mrf_hellthread,
+      related_policy: "Pleroma.Web.ActivityPub.MRF.HellthreadPolicy",
+      label: "MRF Hellthread",
+      description: "Block messages with excessive user mentions",
+      children: [
+        %{
+          key: :delist_threshold,
+          type: :integer,
+          description:
+            "Number of mentioned users after which the message gets removed from timelines and" <>
+              "disables notifications. Set to 0 to disable.",
+          suggestions: [10]
+        },
+        %{
+          key: :reject_threshold,
+          type: :integer,
+          description:
+            "Number of mentioned users after which the messaged gets rejected. Set to 0 to disable.",
+          suggestions: [20]
+        }
+      ]
+    }
+  end
 end

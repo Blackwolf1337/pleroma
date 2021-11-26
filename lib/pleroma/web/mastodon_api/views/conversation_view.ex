@@ -1,5 +1,5 @@
 # Pleroma: A lightweight social networking server
-# Copyright © 2017-2019 Pleroma Authors <https://pleroma.social/>
+# Copyright © 2017-2021 Pleroma Authors <https://pleroma.social/>
 # SPDX-License-Identifier: AGPL-3.0-only
 
 defmodule Pleroma.Web.MastodonAPI.ConversationView do
@@ -23,24 +23,35 @@ defmodule Pleroma.Web.MastodonAPI.ConversationView do
 
     last_activity_id =
       with nil <- participation.last_activity_id do
-        ActivityPub.fetch_latest_activity_id_for_context(participation.conversation.ap_id, %{
-          "user" => user,
-          "blocking_user" => user
-        })
+        ActivityPub.fetch_latest_direct_activity_id_for_context(
+          participation.conversation.ap_id,
+          %{
+            user: user,
+            blocking_user: user
+          }
+        )
       end
 
     activity = Activity.get_by_id_with_object(last_activity_id)
-    # Conversations return all users except the current user.
-    users = Enum.reject(participation.recipients, &(&1.id == user.id))
+
+    # Conversations return all users except the current user,
+    # except when the current user is the only participant
+    users =
+      if length(participation.recipients) > 1 do
+        Enum.reject(participation.recipients, &(&1.id == user.id))
+      else
+        participation.recipients
+      end
 
     %{
       id: participation.id |> to_string(),
-      accounts: render(AccountView, "index.json", users: users, as: :user),
+      accounts: render(AccountView, "index.json", users: users, for: user),
       unread: !participation.read,
       last_status:
         render(StatusView, "show.json",
           activity: activity,
-          direct_conversation_id: participation.id
+          direct_conversation_id: participation.id,
+          for: user
         )
     }
   end

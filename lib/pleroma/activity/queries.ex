@@ -1,5 +1,5 @@
 # Pleroma: A lightweight social networking server
-# Copyright © 2017-2019 Pleroma Authors <https://pleroma.social/>
+# Copyright © 2017-2021 Pleroma Authors <https://pleroma.social/>
 # SPDX-License-Identifier: AGPL-3.0-only
 
 defmodule Pleroma.Activity.Queries do
@@ -7,12 +7,17 @@ defmodule Pleroma.Activity.Queries do
   Contains queries for Activity.
   """
 
-  import Ecto.Query, only: [from: 2]
+  import Ecto.Query, only: [from: 2, where: 3]
 
   @type query :: Ecto.Queryable.t() | Activity.t()
 
   alias Pleroma.Activity
   alias Pleroma.User
+
+  @spec by_id(query(), String.t()) :: query()
+  def by_id(query \\ Activity, id) do
+    from(a in query, where: a.id == ^id)
+  end
 
   @spec by_ap_id(query, String.t()) :: query
   def by_ap_id(query \\ Activity, ap_id) do
@@ -24,15 +29,19 @@ defmodule Pleroma.Activity.Queries do
 
   @spec by_actor(query, String.t()) :: query
   def by_actor(query \\ Activity, actor) do
-    from(
-      activity in query,
-      where: fragment("(?)->>'actor' = ?", activity.data, ^actor)
-    )
+    from(a in query, where: a.actor == ^actor)
   end
 
-  @spec by_author(query, String.t()) :: query
+  @spec by_author(query, User.t()) :: query
   def by_author(query \\ Activity, %User{ap_id: ap_id}) do
     from(a in query, where: a.actor == ^ap_id)
+  end
+
+  def find_by_object_ap_id(activities, object_ap_id) do
+    Enum.find(
+      activities,
+      &(object_ap_id in [is_map(&1.data["object"]) && &1.data["object"]["id"], &1.data["object"]])
+    )
   end
 
   @spec by_object_id(query, String.t() | [String.t()]) :: query
@@ -60,6 +69,22 @@ defmodule Pleroma.Activity.Queries do
           activity.data,
           ^object_id
         )
+    )
+  end
+
+  @spec by_object_in_reply_to_id(query, String.t(), keyword()) :: query
+  def by_object_in_reply_to_id(query, in_reply_to_id, opts \\ []) do
+    query =
+      if opts[:skip_preloading] do
+        Activity.with_joined_object(query)
+      else
+        Activity.with_preloaded_object(query)
+      end
+
+    where(
+      query,
+      [activity, object: o],
+      fragment("(?)->>'inReplyTo' = ?", o.data, ^to_string(in_reply_to_id))
     )
   end
 

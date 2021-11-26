@@ -1,5 +1,5 @@
 # Pleroma: A lightweight social networking server
-# Copyright © 2017-2019 Pleroma Authors <https://pleroma.social/>
+# Copyright © 2017-2021 Pleroma Authors <https://pleroma.social/>
 # SPDX-License-Identifier: AGPL-3.0-only
 
 defmodule Pleroma.Instances.Instance do
@@ -8,15 +8,21 @@ defmodule Pleroma.Instances.Instance do
   alias Pleroma.Instances
   alias Pleroma.Instances.Instance
   alias Pleroma.Repo
+  alias Pleroma.User
+  alias Pleroma.Workers.BackgroundWorker
 
   use Ecto.Schema
 
   import Ecto.Query
   import Ecto.Changeset
 
+  require Logger
+
   schema "instances" do
     field(:host, :string)
     field(:unreachable_since, :naive_datetime_usec)
+    field(:favicon, :string)
+    field(:favicon_updated_at, :naive_datetime)
 
     timestamps()
   end
@@ -25,7 +31,7 @@ defmodule Pleroma.Instances.Instance do
 
   def changeset(struct, params \\ %{}) do
     struct
-    |> cast(params, [:host, :unreachable_since])
+    |> cast(params, [:host, :unreachable_since, :favicon, :favicon_updated_at])
     |> validate_required([:host])
     |> unique_constraint(:host)
   end
@@ -73,7 +79,7 @@ defmodule Pleroma.Instances.Instance do
     )
   end
 
-  def reachable?(_), do: true
+  def reachable?(url_or_host) when is_binary(url_or_host), do: true
 
   def set_reachable(url_or_host) when is_binary(url_or_host) do
     with host <- host(url_or_host),
@@ -115,9 +121,100 @@ defmodule Pleroma.Instances.Instance do
 
   def set_unreachable(_, _), do: {:error, nil}
 
+  def get_consistently_unreachable do
+    reachability_datetime_threshold = Instances.reachability_datetime_threshold()
+
+    from(i in Instance,
+      where: ^reachability_datetime_threshold > i.unreachable_since,
+      order_by: i.unreachable_since,
+      select: {i.host, i.unreachable_since}
+    )
+    |> Repo.all()
+  end
+
   defp parse_datetime(datetime) when is_binary(datetime) do
     NaiveDateTime.from_iso8601(datetime)
   end
 
   defp parse_datetime(datetime), do: datetime
+
+  def get_or_update_favicon(%URI{host: host} = instance_uri) do
+    existing_record = Repo.get_by(Instance, %{host: host})
+    now = NaiveDateTime.utc_now()
+
+    if existing_record && existing_record.favicon_updated_at &&
+         NaiveDateTime.diff(now, existing_record.favicon_updated_at) < 86_400 do
+      existing_record.favicon
+    else
+      favicon = scrape_favicon(instance_uri)
+
+      if existing_record do
+        existing_record
+        |> changeset(%{favicon: favicon, favicon_updated_at: now})
+        |> Repo.update()
+      else
+        %Instance{}
+        |> changeset(%{host: host, favicon: favicon, favicon_updated_at: now})
+        |> Repo.insert()
+      end
+
+      favicon
+    end
+  rescue
+    e ->
+      Logger.warn("Instance.get_or_update_favicon(\"#{host}\") error: #{inspect(e)}")
+      nil
+  end
+
+  defp scrape_favicon(%URI{} = instance_uri) do
+    try do
+      with {_, true} <- {:reachable, reachable?(instance_uri.host)},
+           {:ok, %Tesla.Env{body: html}} <-
+             Pleroma.HTTP.get(to_string(instance_uri), [{"accept", "text/html"}], pool: :media),
+           {_, [favicon_rel | _]} when is_binary(favicon_rel) <-
+             {:parse,
+              html |> Floki.parse_document!() |> Floki.attribute("link[rel=icon]", "href")},
+           {_, favicon} when is_binary(favicon) <-
+             {:merge, URI.merge(instance_uri, favicon_rel) |> to_string()} do
+        favicon
+      else
+        {:reachable, false} ->
+          Logger.debug(
+            "Instance.scrape_favicon(\"#{to_string(instance_uri)}\") ignored unreachable host"
+          )
+
+          nil
+
+        _ ->
+          nil
+      end
+    rescue
+      e ->
+        Logger.warn(
+          "Instance.scrape_favicon(\"#{to_string(instance_uri)}\") error: #{inspect(e)}"
+        )
+
+        nil
+    end
+  end
+
+  @doc """
+  Deletes all users from an instance in a background task, thus also deleting
+  all of those users' activities and notifications.
+  """
+  def delete_users_and_activities(host) when is_binary(host) do
+    BackgroundWorker.enqueue("delete_instance", %{"host" => host})
+  end
+
+  def perform(:delete_instance, host) when is_binary(host) do
+    User.Query.build(%{nickname: "@#{host}"})
+    |> Repo.chunk_stream(100, :batches)
+    |> Stream.each(fn users ->
+      users
+      |> Enum.each(fn user ->
+        User.perform(:delete, user)
+      end)
+    end)
+    |> Stream.run()
+  end
 end

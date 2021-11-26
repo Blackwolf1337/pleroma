@@ -1,10 +1,14 @@
 # Pleroma: A lightweight social networking server
-# Copyright © 2017-2019 Pleroma Authors <https://pleroma.social/>
+# Copyright © 2017-2021 Pleroma Authors <https://pleroma.social/>
 # SPDX-License-Identifier: AGPL-3.0-only
 
 defmodule Pleroma.Upload.Filter.Mogrifun do
   @behaviour Pleroma.Upload.Filter
   alias Pleroma.Upload.Filter
+
+  @moduledoc """
+  This module is just an example of an Upload filter. It's not supposed to be used in production.
+  """
 
   @filters [
     {"implode", "1"},
@@ -34,11 +38,16 @@ defmodule Pleroma.Upload.Filter.Mogrifun do
     [{"fill", "yellow"}, {"tint", "40"}]
   ]
 
+  @spec filter(Pleroma.Upload.t()) :: {:ok, atom()} | {:error, String.t()}
   def filter(%Pleroma.Upload{tempfile: file, content_type: "image" <> _}) do
-    Filter.Mogrify.do_filter(file, [Enum.random(@filters)])
-
-    :ok
+    try do
+      Filter.Mogrify.do_filter(file, [Enum.random(@filters)])
+      {:ok, :filtered}
+    rescue
+      e in ErlangError ->
+        {:error, "#{__MODULE__}: #{inspect(e)}"}
+    end
   end
 
-  def filter(_), do: :ok
+  def filter(_), do: {:ok, :noop}
 end

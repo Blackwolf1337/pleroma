@@ -1,13 +1,15 @@
 # Pleroma: A lightweight social networking server
-# Copyright © 2017-2019 Pleroma Authors <https://pleroma.social/>
+# Copyright © 2017-2021 Pleroma Authors <https://pleroma.social/>
 # SPDX-License-Identifier: AGPL-3.0-only
 
 defmodule Pleroma.Web.ActivityPub.UserView do
   use Pleroma.Web, :view
 
   alias Pleroma.Keys
+  alias Pleroma.Object
   alias Pleroma.Repo
   alias Pleroma.User
+  alias Pleroma.Web.ActivityPub.ObjectView
   alias Pleroma.Web.ActivityPub.Transmogrifier
   alias Pleroma.Web.ActivityPub.Utils
   alias Pleroma.Web.Endpoint
@@ -73,21 +75,22 @@ defmodule Pleroma.Web.ActivityPub.UserView do
     {:ok, _, public_key} = Keys.keys_from_pem(user.keys)
     public_key = :public_key.pem_entry_encode(:SubjectPublicKeyInfo, public_key)
     public_key = :public_key.pem_encode([public_key])
+    user = User.sanitize_html(user)
 
     endpoints = render("endpoints.json", %{user: user})
 
     emoji_tags = Transmogrifier.take_emoji_tags(user)
 
-    fields =
-      user
-      |> User.fields()
-      |> Enum.map(fn %{"name" => name, "value" => value} ->
+    fields = Enum.map(user.fields, &Map.put(&1, "type", "PropertyValue"))
+
+    capabilities =
+      if is_boolean(user.accepts_chat_messages) do
         %{
-          "name" => Pleroma.HTML.strip_tags(name),
-          "value" => Pleroma.HTML.filter_tags(value, Pleroma.HTML.Scrubber.LinksOnly)
+          "acceptsChatMessages" => user.accepts_chat_messages
         }
-      end)
-      |> Enum.map(&Map.put(&1, "type", "PropertyValue"))
+      else
+        %{}
+      end
 
     %{
       "id" => user.ap_id,
@@ -96,11 +99,12 @@ defmodule Pleroma.Web.ActivityPub.UserView do
       "followers" => "#{user.ap_id}/followers",
       "inbox" => "#{user.ap_id}/inbox",
       "outbox" => "#{user.ap_id}/outbox",
+      "featured" => "#{user.ap_id}/collections/featured",
       "preferredUsername" => user.nickname,
       "name" => user.name,
       "summary" => user.bio,
       "url" => user.ap_id,
-      "manuallyApprovesFollowers" => user.locked,
+      "manuallyApprovesFollowers" => user.is_locked,
       "publicKey" => %{
         "id" => "#{user.ap_id}#main-key",
         "owner" => user.ap_id,
@@ -108,8 +112,11 @@ defmodule Pleroma.Web.ActivityPub.UserView do
       },
       "endpoints" => endpoints,
       "attachment" => fields,
-      "tag" => (user.source_data["tag"] || []) ++ emoji_tags,
-      "discoverable" => user.discoverable
+      "tag" => emoji_tags,
+      # Note: key name is indeed "discoverable" (not an error)
+      "discoverable" => user.is_discoverable,
+      "capabilities" => capabilities,
+      "alsoKnownAs" => user.also_known_as
     }
     |> Map.merge(maybe_make_image(&User.avatar_url/2, "icon", user))
     |> Map.merge(maybe_make_image(&User.banner_url/2, "image", user))
@@ -221,32 +228,41 @@ defmodule Pleroma.Web.ActivityPub.UserView do
     |> Map.merge(Utils.make_json_ld_header())
   end
 
-  def render("activity_collection_page.json", %{activities: activities, iri: iri}) do
-    # this is sorted chronologically, so first activity is the newest (max)
-    {max_id, min_id, collection} =
-      if length(activities) > 0 do
-        {
-          Enum.at(activities, 0).id,
-          Enum.at(Enum.reverse(activities), 0).id,
-          Enum.map(activities, fn act ->
-            {:ok, data} = Transmogrifier.prepare_outgoing(act.data)
-            data
-          end)
-        }
-      else
-        {
-          0,
-          0,
-          []
-        }
-      end
+  def render("activity_collection_page.json", %{
+        activities: activities,
+        iri: iri,
+        pagination: pagination
+      }) do
+    collection =
+      Enum.map(activities, fn activity ->
+        {:ok, data} = Transmogrifier.prepare_outgoing(activity.data)
+        data
+      end)
 
     %{
-      "id" => "#{iri}?max_id=#{max_id}&page=true",
       "type" => "OrderedCollectionPage",
       "partOf" => iri,
-      "orderedItems" => collection,
-      "next" => "#{iri}?max_id=#{min_id}&page=true"
+      "orderedItems" => collection
+    }
+    |> Map.merge(Utils.make_json_ld_header())
+    |> Map.merge(pagination)
+  end
+
+  def render("featured.json", %{
+        user: %{featured_address: featured_address, pinned_objects: pinned_objects}
+      }) do
+    objects =
+      pinned_objects
+      |> Enum.sort_by(fn {_, pinned_at} -> pinned_at end, &>=/2)
+      |> Enum.map(fn {id, _} ->
+        ObjectView.render("object.json", %{object: Object.get_cached_by_ap_id(id)})
+      end)
+
+    %{
+      "id" => featured_address,
+      "type" => "OrderedCollection",
+      "orderedItems" => objects,
+      "totalItems" => length(objects)
     }
     |> Map.merge(Utils.make_json_ld_header())
   end

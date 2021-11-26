@@ -1,5 +1,9 @@
 # Installing on Linux using OTP releases
 
+{! backend/installation/otp_vs_from_source.include !}
+
+This guide covers a installation using an OTP release. To install Pleroma from source, please check out the corresponding guide for your distro.
+
 ## Pre-requisites
 * A machine running Linux with GNU (e.g. Debian, Ubuntu) or musl (e.g. Alpine) libc and `x86_64`, `aarch64` or `armv7l` CPU, you have root access to. If you are not sure if it's compatible see [Detecting flavour section](#detecting-flavour) below
 * A (sub)domain pointed to the machine
@@ -27,16 +31,37 @@ Other than things bundled in the OTP release Pleroma depends on:
 * PostgreSQL (also utilizes extensions in postgresql-contrib)
 * nginx (could be swapped with another reverse proxy but this guide covers only it)
 * certbot (for Let's Encrypt certificates, could be swapped with another ACME client, but this guide covers only it)
+* libmagic/file
 
-```sh tab="Alpine"
-echo "http://nl.alpinelinux.org/alpine/latest-stable/community" >> /etc/apk/repositories
-apk update
-apk add curl unzip ncurses postgresql postgresql-contrib nginx certbot
-```
+=== "Alpine"
+    ```
+    awk 'NR==2' /etc/apk/repositories | sed 's/main/community/' | tee -a /etc/apk/repositories
+    apk update
+    apk add curl unzip ncurses postgresql postgresql-contrib nginx certbot file-dev
+    ```
 
-```sh tab="Debian/Ubuntu"
-apt install curl unzip libncurses5 postgresql postgresql-contrib nginx certbot
-```
+=== "Debian/Ubuntu"
+    ```
+    apt install curl unzip libncurses5 postgresql postgresql-contrib nginx certbot libmagic-dev
+    ```
+
+### Installing optional packages
+
+Per [`docs/installation/optional/media_graphics_packages.md`](optional/media_graphics_packages.md):
+  * ImageMagick
+  * ffmpeg
+  * exiftool
+
+=== "Alpine"
+    ```
+    apk update
+    apk add imagemagick ffmpeg exiftool
+    ```
+
+=== "Debian/Ubuntu"
+    ```
+    apt install imagemagick ffmpeg libimage-exiftool-perl
+    ```
 
 ## Setup
 ### Configuring PostgreSQL
@@ -47,31 +72,37 @@ apt install curl unzip libncurses5 postgresql postgresql-contrib nginx certbot
 
 RUM indexes are an alternative indexing scheme that is not included in PostgreSQL by default. You can read more about them on the [Configuration page](../configuration/cheatsheet.md#rum-indexing-for-full-text-search). They are completely optional and most of the time are not worth it, especially if you are running a single user instance (unless you absolutely need ordered search results).
 
-```sh tab="Alpine"
-apk add git build-base postgresql-dev
-git clone https://github.com/postgrespro/rum /tmp/rum
-cd /tmp/rum
-make USE_PGXS=1
-make USE_PGXS=1 install
-cd
-rm -r /tmp/rum
-```
+=== "Alpine"
+    ```
+    apk add git build-base postgresql-dev
+    git clone https://github.com/postgrespro/rum /tmp/rum
+    cd /tmp/rum
+    make USE_PGXS=1
+    make USE_PGXS=1 install
+    cd
+    rm -r /tmp/rum
+    ```
 
-```sh tab="Debian/Ubuntu"
-# Available only on Buster/19.04
-apt install postgresql-11-rum
-```
+=== "Debian/Ubuntu"
+    ```
+    # Available only on Buster/19.04
+    apt install postgresql-11-rum
+    ```
 
 #### (Optional) Performance configuration
-For optimal performance, you may use [PGTune](https://pgtune.leopard.in.ua), don't forget to restart postgresql after editing the configuration
+It is encouraged to check [Optimizing your PostgreSQL performance](../configuration/postgresql.md) document, for tips on PostgreSQL tuning.
 
-```sh tab="Alpine"
-rc-service postgresql restart
-```
+Restart PostgreSQL to apply configuration changes:
 
-```sh tab="Debian/Ubuntu"
-systemctl restart postgresql
-```
+=== "Alpine"
+    ```
+    rc-service postgresql restart
+    ```
+
+=== "Debian/Ubuntu"
+    ```
+    systemctl restart postgresql
+    ```
 
 ### Installing Pleroma
 ```sh
@@ -142,14 +173,16 @@ certbot certonly --standalone --preferred-challenges http -d yourinstance.tld
 
 The location of nginx configs is dependent on the distro
 
-```sh tab="Alpine"
-cp /opt/pleroma/installation/pleroma.nginx /etc/nginx/conf.d/pleroma.conf
-```
+=== "Alpine"
+    ```
+    cp /opt/pleroma/installation/pleroma.nginx /etc/nginx/conf.d/pleroma.conf
+    ```
 
-```sh tab="Debian/Ubuntu"
-cp /opt/pleroma/installation/pleroma.nginx /etc/nginx/sites-available/pleroma.nginx
-ln -s /etc/nginx/sites-available/pleroma.nginx /etc/nginx/sites-enabled/pleroma.nginx
-```
+=== "Debian/Ubuntu"
+    ```
+    cp /opt/pleroma/installation/pleroma.nginx /etc/nginx/sites-available/pleroma.conf
+    ln -s /etc/nginx/sites-available/pleroma.conf /etc/nginx/sites-enabled/pleroma.conf
+    ```
 
 If your distro does not have either of those you can append `include /etc/nginx/pleroma.conf` to the end of the http section in /etc/nginx/nginx.conf and
 ```sh
@@ -166,39 +199,43 @@ nginx -t
 ```
 #### Start nginx
 
-```sh tab="Alpine"
-rc-service nginx start
-```
+=== "Alpine"
+    ```
+    rc-service nginx start
+    ```
 
-```sh tab="Debian/Ubuntu"
-systemctl start nginx
-```
+=== "Debian/Ubuntu"
+    ```
+    systemctl start nginx
+    ```
 
 At this point if you open your (sub)domain in a browser you should see a 502 error, that's because Pleroma is not started yet.
 
 ### Setting up a system service
 
-```sh tab="Alpine"
-# Copy the service into a proper directory
-cp /opt/pleroma/installation/init.d/pleroma /etc/init.d/pleroma
+=== "Alpine"
+    ```
+    # Copy the service into a proper directory
+    cp /opt/pleroma/installation/init.d/pleroma /etc/init.d/pleroma
 
-# Start pleroma and enable it on boot
-rc-service pleroma start
-rc-update add pleroma
-```
+    # Start pleroma and enable it on boot
+    rc-service pleroma start
+    rc-update add pleroma
+    ```
 
-```sh tab="Debian/Ubuntu"
-# Copy the service into a proper directory
-cp /opt/pleroma/installation/pleroma.service /etc/systemd/system/pleroma.service
+=== "Debian/Ubuntu"
+    ```
+    # Copy the service into a proper directory
+    cp /opt/pleroma/installation/pleroma.service /etc/systemd/system/pleroma.service
 
-# Start pleroma and enable it on boot
-systemctl start pleroma
-systemctl enable pleroma
-```
+    # Start pleroma and enable it on boot
+    systemctl start pleroma
+    systemctl enable pleroma
+    ```
 
 If everything worked, you should see Pleroma-FE when visiting your domain. If that didn't happen, try reviewing the installation steps, starting Pleroma in the foreground and seeing if there are any errrors.
 
-Still doesn't work? Feel free to contact us on [#pleroma on freenode](https://irc.pleroma.social) or via matrix at <https://matrix.heldscal.la/#/room/#freenode_#pleroma:matrix.org>, you can also [file an issue on our Gitlab](https://git.pleroma.social/pleroma/pleroma-support/issues/new)
+Questions about the installation or didn’t it work as it should be, ask in [#pleroma:libera.chat](https://matrix.to/#/#pleroma:libera.chat) via Matrix or **#pleroma** on **libera.chat** via IRC, you can also [file an issue on our Gitlab](https://git.pleroma.social/pleroma/pleroma-support/issues/new).
 
 ## Post installation
 
@@ -214,64 +251,57 @@ $EDITOR path-to-nginx-config
 nginx -t
 ```
 
-```sh tab="Alpine"
-# Restart nginx
-rc-service nginx restart
+=== "Alpine"
+    ```
+    # Restart nginx
+    rc-service nginx restart
 
-# Start the cron daemon and make it start on boot
-rc-service crond start
-rc-update add crond
+    # Start the cron daemon and make it start on boot
+    rc-service crond start
+    rc-update add crond
 
-# Ensure the webroot menthod and post hook is working
-certbot renew --cert-name yourinstance.tld --webroot -w /var/lib/letsencrypt/ --dry-run --post-hook 'rc-service nginx reload'
+    # Ensure the webroot menthod and post hook is working
+    certbot renew --cert-name yourinstance.tld --webroot -w /var/lib/letsencrypt/ --dry-run --post-hook 'rc-service nginx reload'
 
-# Add it to the daily cron
-echo '#!/bin/sh
-certbot renew --cert-name yourinstance.tld --webroot -w /var/lib/letsencrypt/ --post-hook "rc-service nginx reload"
-' > /etc/periodic/daily/renew-pleroma-cert
-chmod +x /etc/periodic/daily/renew-pleroma-cert
+    # Add it to the daily cron
+    echo '#!/bin/sh
+    certbot renew --cert-name yourinstance.tld --webroot -w /var/lib/letsencrypt/ --post-hook "rc-service nginx reload"
+    ' > /etc/periodic/daily/renew-pleroma-cert
+    chmod +x /etc/periodic/daily/renew-pleroma-cert
 
-# If everything worked the output should contain /etc/cron.daily/renew-pleroma-cert
-run-parts --test /etc/periodic/daily
-```
+    # If everything worked the output should contain /etc/cron.daily/renew-pleroma-cert
+    run-parts --test /etc/periodic/daily
+    ```
 
-```sh tab="Debian/Ubuntu"
-# Restart nginx
-systemctl restart nginx
+=== "Debian/Ubuntu"
+    ```
+    # Restart nginx
+    systemctl restart nginx
 
-# Ensure the webroot menthod and post hook is working
-certbot renew --cert-name yourinstance.tld --webroot -w /var/lib/letsencrypt/ --dry-run --post-hook 'systemctl reload nginx'
+    # Ensure the webroot menthod and post hook is working
+    certbot renew --cert-name yourinstance.tld --webroot -w /var/lib/letsencrypt/ --dry-run --post-hook 'systemctl reload nginx'
 
-# Add it to the daily cron
-echo '#!/bin/sh
-certbot renew --cert-name yourinstance.tld --webroot -w /var/lib/letsencrypt/ --post-hook "systemctl reload nginx"
-' > /etc/cron.daily/renew-pleroma-cert
-chmod +x /etc/cron.daily/renew-pleroma-cert
+    # Add it to the daily cron
+    echo '#!/bin/sh
+    certbot renew --cert-name yourinstance.tld --webroot -w /var/lib/letsencrypt/ --post-hook "systemctl reload nginx"
+    ' > /etc/cron.daily/renew-pleroma-cert
+    chmod +x /etc/cron.daily/renew-pleroma-cert
 
-# If everything worked the output should contain /etc/cron.daily/renew-pleroma-cert
-run-parts --test /etc/cron.daily
-```
+    # If everything worked the output should contain /etc/cron.daily/renew-pleroma-cert
+    run-parts --test /etc/cron.daily
+    ```
 
 ## Create your first user and set as admin
 ```sh
-cd /opt/pleroma/bin
+cd /opt/pleroma
 su pleroma -s $SHELL -lc "./bin/pleroma_ctl user new joeuser joeuser@sld.tld --admin"
 ```
 This will create an account withe the username of 'joeuser' with the email address of joeuser@sld.tld, and set that user's account as an admin. This will result in a link that you can paste into the browser, which logs you in and enables you to set the password.
 
-### Updating
-Generally, doing the following is enough:
-```sh
-# Download the new release
-su pleroma -s $SHELL -lc "./bin/pleroma_ctl update"
-
-# Migrate the database, you are advised to stop the instance before doing that
-su pleroma -s $SHELL -lc "./bin/pleroma_ctl migrate"
-```
-But you should **always check the release notes/changelog** in case there are config deprecations, special update steps, etc.
-
 ## Further reading
 
-* [Backup your instance](../administration/backup.md)
-* [Hardening your instance](../configuration/hardening.md)
-* [How to activate mediaproxy](../configuration/howto_mediaproxy.md)
+{! backend/installation/further_reading.include !}
+
+## Questions
+
+Questions about the installation or didn’t it work as it should be, ask in [#pleroma:libera.chat](https://matrix.to/#/#pleroma:libera.chat) via Matrix or **#pleroma** on **libera.chat** via IRC, you can also [file an issue on our Gitlab](https://git.pleroma.social/pleroma/pleroma-support/issues/new).

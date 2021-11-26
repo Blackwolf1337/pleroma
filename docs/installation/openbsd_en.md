@@ -4,24 +4,31 @@ This guide describes the installation and configuration of pleroma (and the requ
 
 For any additional information regarding commands and configuration files mentioned here, check the man pages [online](https://man.openbsd.org/) or directly on your server with the man command.
 
+{! backend/installation/generic_dependencies.include !}
+
+### Preparing the system
 #### Required software
-
-The following packages need to be installed:
-
-  * elixir
-  * gmake
-  * ImageMagick
-  * git
-  * postgresql-server
-  * postgresql-contrib
 
 To install them, run the following command (with doas or as root):
 
 ```
-pkg_add elixir gmake ImageMagick git postgresql-server postgresql-contrib
+pkg_add elixir gmake git postgresql-server postgresql-contrib cmake ffmpeg ImageMagick
 ```
 
 Pleroma requires a reverse proxy, OpenBSD has relayd in base (and is used in this guide) and packages/ports are available for nginx (www/nginx) and apache (www/apache-httpd). Independently of the reverse proxy, [acme-client(1)](https://man.openbsd.org/acme-client) can be used to get a certificate from Let's Encrypt.
+
+#### Optional software
+
+Per [`docs/installation/optional/media_graphics_packages.md`](../installation/optional/media_graphics_packages.md):
+  * ImageMagick
+  * ffmpeg
+  * exiftool
+
+To install the above:
+
+```
+pkg_add ImageMagick ffmpeg p5-Image-ExifTool
+```
 
 #### Creating the pleroma user
 Pleroma will be run by a dedicated user, \_pleroma. Before creating it, insert the following lines in login.conf:
@@ -224,7 +231,7 @@ Enter a shell as \_pleroma (as root `su _pleroma -`) and enter pleroma's install
 Then follow the main installation guide:
 
   * run `mix deps.get`
-  * run `mix pleroma.instance gen` and enter your instance's information when asked
+  * run `MIX_ENV=prod mix pleroma.instance gen` and enter your instance's information when asked
   * copy config/generated\_config.exs to config/prod.secret.exs. The default values should be sufficient but you should edit it and check that everything seems OK.
   * exit your current shell back to a root one and run `psql -U postgres -f /home/_pleroma/pleroma/config/setup_db.psql` to setup the database.
   * return to a \_pleroma shell into pleroma's installation directory (`su _pleroma -;cd ~/pleroma`) and run `MIX_ENV=prod mix ecto.migrate`
@@ -242,3 +249,11 @@ If your instance is up and running, you can create your first user with administ
 ```
 LC_ALL=en_US.UTF-8 MIX_ENV=prod mix pleroma.user new <username> <your@emailaddress> --admin
 ```
+
+#### Further reading
+
+{! backend/installation/further_reading.include !}
+
+## Questions
+
+Questions about the installation or didn’t it work as it should be, ask in [#pleroma:libera.chat](https://matrix.to/#/#pleroma:libera.chat) via Matrix or **#pleroma** on **libera.chat** via IRC.

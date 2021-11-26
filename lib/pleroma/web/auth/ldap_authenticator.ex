@@ -1,5 +1,5 @@
 # Pleroma: A lightweight social networking server
-# Copyright © 2017-2019 Pleroma Authors <https://pleroma.social/>
+# Copyright © 2017-2021 Pleroma Authors <https://pleroma.social/>
 # SPDX-License-Identifier: AGPL-3.0-only
 
 defmodule Pleroma.Web.Auth.LDAPAuthenticator do
@@ -7,8 +7,7 @@ defmodule Pleroma.Web.Auth.LDAPAuthenticator do
 
   require Logger
 
-  import Pleroma.Web.Auth.Authenticator,
-    only: [fetch_credentials: 1, fetch_user: 1]
+  import Pleroma.Web.Auth.Helpers, only: [fetch_credentials: 1, fetch_user: 1]
 
   @behaviour Pleroma.Web.Auth.Authenticator
   @base Pleroma.Web.Auth.PleromaAuthenticator
@@ -28,10 +27,6 @@ defmodule Pleroma.Web.Auth.LDAPAuthenticator do
          %User{} = user <- ldap_user(name, password) do
       {:ok, user}
     else
-      {:error, {:ldap_connection_error, _}} ->
-        # When LDAP is unavailable, try default authenticator
-        @base.get_user(conn)
-
       {:ldap, _} ->
         @base.get_user(conn)
 
@@ -92,7 +87,7 @@ defmodule Pleroma.Web.Auth.LDAPAuthenticator do
             user
 
           _ ->
-            register_user(connection, base, uid, name, password)
+            register_user(connection, base, uid, name)
         end
 
       error ->
@@ -100,34 +95,31 @@ defmodule Pleroma.Web.Auth.LDAPAuthenticator do
     end
   end
 
-  defp register_user(connection, base, uid, name, password) do
+  defp register_user(connection, base, uid, name) do
     case :eldap.search(connection, [
            {:base, to_charlist(base)},
            {:filter, :eldap.equalityMatch(to_charlist(uid), to_charlist(name))},
            {:scope, :eldap.wholeSubtree()},
-           {:attributes, ['mail', 'email']},
            {:timeout, @search_timeout}
          ]) do
       {:ok, {:eldap_search_result, [{:eldap_entry, _, attributes}], _}} ->
-        with {_, [mail]} <- List.keyfind(attributes, 'mail', 0) do
-          params = %{
-            email: :erlang.list_to_binary(mail),
-            name: name,
-            nickname: name,
-            password: password,
-            password_confirmation: password
-          }
+        params = %{
+          name: name,
+          nickname: name,
+          password: nil
+        }
 
-          changeset = User.register_changeset(%User{}, params)
-
-          case User.register(changeset) do
-            {:ok, user} -> user
-            error -> error
+        params =
+          case List.keyfind(attributes, 'mail', 0) do
+            {_, [mail]} -> Map.put_new(params, :email, :erlang.list_to_binary(mail))
+            _ -> params
           end
-        else
-          _ ->
-            Logger.error("Could not find LDAP attribute mail: #{inspect(attributes)}")
-            {:error, :ldap_registration_missing_attributes}
+
+        changeset = User.register_changeset_ldap(%User{}, params)
+
+        case User.register(changeset) do
+          {:ok, user} -> user
+          error -> error
         end
 
       error ->

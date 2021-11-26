@@ -1,5 +1,5 @@
 # Pleroma: A lightweight social networking server
-# Copyright © 2017-2019 Pleroma Authors <https://pleroma.social/>
+# Copyright © 2017-2021 Pleroma Authors <https://pleroma.social/>
 # SPDX-License-Identifier: AGPL-3.0-only
 
 defmodule Pleroma.Web.ActivityPub.MRF.ObjectAgePolicy do
@@ -9,9 +9,9 @@ defmodule Pleroma.Web.ActivityPub.MRF.ObjectAgePolicy do
   require Pleroma.Constants
 
   @moduledoc "Filter activities depending on their age"
-  @behaviour Pleroma.Web.ActivityPub.MRF
+  @behaviour Pleroma.Web.ActivityPub.MRF.Policy
 
-  defp check_date(%{"published" => published} = message) do
+  defp check_date(%{"object" => %{"published" => published}} = message) do
     with %DateTime{} = now <- DateTime.utc_now(),
          {:ok, %DateTime{} = then, _} <- DateTime.from_iso8601(published),
          max_ttl <- Config.get([:mrf_object_age, :threshold]),
@@ -28,7 +28,7 @@ defmodule Pleroma.Web.ActivityPub.MRF.ObjectAgePolicy do
 
   defp check_reject(message, actions) do
     if :reject in actions do
-      {:reject, nil}
+      {:reject, "[ObjectAgePolicy]"}
     else
       {:ok, message}
     end
@@ -37,19 +37,25 @@ defmodule Pleroma.Web.ActivityPub.MRF.ObjectAgePolicy do
   defp check_delist(message, actions) do
     if :delist in actions do
       with %User{} = user <- User.get_cached_by_ap_id(message["actor"]) do
-        to = List.delete(message["to"], Pleroma.Constants.as_public()) ++ [user.follower_address]
-        cc = List.delete(message["cc"], user.follower_address) ++ [Pleroma.Constants.as_public()]
+        to =
+          List.delete(message["to"] || [], Pleroma.Constants.as_public()) ++
+            [user.follower_address]
+
+        cc =
+          List.delete(message["cc"] || [], user.follower_address) ++
+            [Pleroma.Constants.as_public()]
 
         message =
           message
           |> Map.put("to", to)
           |> Map.put("cc", cc)
+          |> Kernel.put_in(["object", "to"], to)
+          |> Kernel.put_in(["object", "cc"], cc)
 
         {:ok, message}
       else
-        # Unhandleable error: somebody is messing around, just drop the message.
         _e ->
-          {:reject, nil}
+          {:reject, "[ObjectAgePolicy] Unhandled error"}
       end
     else
       {:ok, message}
@@ -59,19 +65,20 @@ defmodule Pleroma.Web.ActivityPub.MRF.ObjectAgePolicy do
   defp check_strip_followers(message, actions) do
     if :strip_followers in actions do
       with %User{} = user <- User.get_cached_by_ap_id(message["actor"]) do
-        to = List.delete(message["to"], user.follower_address)
-        cc = List.delete(message["cc"], user.follower_address)
+        to = List.delete(message["to"] || [], user.follower_address)
+        cc = List.delete(message["cc"] || [], user.follower_address)
 
         message =
           message
           |> Map.put("to", to)
           |> Map.put("cc", cc)
+          |> Kernel.put_in(["object", "to"], to)
+          |> Kernel.put_in(["object", "cc"], cc)
 
         {:ok, message}
       else
-        # Unhandleable error: somebody is messing around, just drop the message.
         _e ->
-          {:reject, nil}
+          {:reject, "[ObjectAgePolicy] Unhandled error"}
       end
     else
       {:ok, message}
@@ -79,7 +86,7 @@ defmodule Pleroma.Web.ActivityPub.MRF.ObjectAgePolicy do
   end
 
   @impl true
-  def filter(%{"type" => "Create", "published" => _} = message) do
+  def filter(%{"type" => "Create", "object" => %{"published" => _}} = message) do
     with actions <- Config.get([:mrf_object_age, :actions]),
          {:reject, _} <- check_date(message),
          {:ok, message} <- check_reject(message, actions),
@@ -96,5 +103,39 @@ defmodule Pleroma.Web.ActivityPub.MRF.ObjectAgePolicy do
   def filter(message), do: {:ok, message}
 
   @impl true
-  def describe, do: {:ok, %{}}
+  def describe do
+    mrf_object_age =
+      Config.get(:mrf_object_age)
+      |> Enum.into(%{})
+
+    {:ok, %{mrf_object_age: mrf_object_age}}
+  end
+
+  @impl true
+  def config_description do
+    %{
+      key: :mrf_object_age,
+      related_policy: "Pleroma.Web.ActivityPub.MRF.ObjectAgePolicy",
+      label: "MRF Object Age",
+      description:
+        "Rejects or delists posts based on their timestamp deviance from your server's clock.",
+      children: [
+        %{
+          key: :threshold,
+          type: :integer,
+          description: "Required age (in seconds) of a post before actions are taken.",
+          suggestions: [172_800]
+        },
+        %{
+          key: :actions,
+          type: {:list, :atom},
+          description:
+            "A list of actions to apply to the post. `:delist` removes the post from public timelines; " <>
+              "`:strip_followers` removes followers from the ActivityPub recipient list ensuring they won't be delivered to home timelines; " <>
+              "`:reject` rejects the message entirely",
+          suggestions: [:delist, :strip_followers, :reject]
+        }
+      ]
+    }
+  end
 end

@@ -1,5 +1,5 @@
 # Pleroma: A lightweight social networking server
-# Copyright © 2017-2019 Pleroma Authors <https://pleroma.social/>
+# Copyright © 2017-2021 Pleroma Authors <https://pleroma.social/>
 # SPDX-License-Identifier: AGPL-3.0-only
 
 defmodule Pleroma.Healthcheck do
@@ -29,7 +29,7 @@ defmodule Pleroma.Healthcheck do
   @spec system_info() :: t()
   def system_info do
     %Healthcheck{
-      memory_used: Float.round(:erlang.memory(:total) / 1024 / 1024, 2)
+      memory_used: Float.round(:recon_alloc.memory(:allocated) / 1024 / 1024, 2)
     }
     |> assign_db_info()
     |> assign_job_queue_stats()

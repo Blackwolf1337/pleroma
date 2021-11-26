@@ -1,11 +1,11 @@
 # Pleroma: A lightweight social networking server
-# Copyright © 2019 Pleroma Authors <https://pleroma.social/>
+# Copyright © 2017-2021 Pleroma Authors <https://pleroma.social/>
 # SPDX-License-Identifier: AGPL-3.0-only
 
 defmodule Pleroma.Web.ActivityPub.MRF.AntiLinkSpamPolicy do
   alias Pleroma.User
 
-  @behaviour Pleroma.Web.ActivityPub.MRF
+  @behaviour Pleroma.Web.ActivityPub.MRF.Policy
 
   require Logger
 
@@ -27,23 +27,25 @@ defmodule Pleroma.Web.ActivityPub.MRF.AntiLinkSpamPolicy do
 
   @impl true
   def filter(%{"type" => "Create", "actor" => actor, "object" => object} = message) do
-    with {:ok, %User{} = u} <- User.get_or_fetch_by_ap_id(actor),
+    with {:ok, %User{local: false} = u} <- User.get_or_fetch_by_ap_id(actor),
          {:contains_links, true} <- {:contains_links, contains_links?(object)},
          {:old_user, true} <- {:old_user, old_user?(u)} do
       {:ok, message}
     else
+      {:ok, %User{local: true}} ->
+        {:ok, message}
+
       {:contains_links, false} ->
         {:ok, message}
 
       {:old_user, false} ->
-        {:reject, nil}
+        {:reject, "[AntiLinkSpamPolicy] User has no posts nor followers"}
 
       {:error, _} ->
-        {:reject, nil}
+        {:reject, "[AntiLinkSpamPolicy] Failed to get or fetch user by ap_id"}
 
       e ->
-        Logger.warn("[MRF anti-link-spam] WTF: unhandled error #{inspect(e)}")
-        {:reject, nil}
+        {:reject, "[AntiLinkSpamPolicy] Unhandled error #{inspect(e)}"}
     end
   end
 

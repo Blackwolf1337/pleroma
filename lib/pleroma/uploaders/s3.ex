@@ -1,5 +1,5 @@
 # Pleroma: A lightweight social networking server
-# Copyright © 2017-2019 Pleroma Authors <https://pleroma.social/>
+# Copyright © 2017-2021 Pleroma Authors <https://pleroma.social/>
 # SPDX-License-Identifier: AGPL-3.0-only
 
 defmodule Pleroma.Uploaders.S3 do
@@ -12,26 +12,10 @@ defmodule Pleroma.Uploaders.S3 do
   # links with less strict filenames
   @impl true
   def get_file(file) do
-    config = Config.get([__MODULE__])
-    bucket = Keyword.fetch!(config, :bucket)
-
-    bucket_with_namespace =
-      cond do
-        truncated_namespace = Keyword.get(config, :truncated_namespace) ->
-          truncated_namespace
-
-        namespace = Keyword.get(config, :bucket_namespace) ->
-          namespace <> ":" <> bucket
-
-        true ->
-          bucket
-      end
-
     {:ok,
      {:url,
       Path.join([
-        Keyword.fetch!(config, :public_endpoint),
-        bucket_with_namespace,
+        Pleroma.Upload.base_url(),
         strict_encode(URI.decode(file))
       ])}}
   end
@@ -46,12 +30,23 @@ defmodule Pleroma.Uploaders.S3 do
 
     op =
       if streaming do
-        upload.tempfile
-        |> ExAws.S3.Upload.stream_file()
-        |> ExAws.S3.upload(bucket, s3_name, [
-          {:acl, :public_read},
-          {:content_type, upload.content_type}
-        ])
+        op =
+          upload.tempfile
+          |> ExAws.S3.Upload.stream_file()
+          |> ExAws.S3.upload(bucket, s3_name, [
+            {:acl, :public_read},
+            {:content_type, upload.content_type}
+          ])
+
+        if Application.get_env(:tesla, :adapter) == Tesla.Adapter.Gun do
+          # set s3 upload timeout to respect :upload pool timeout
+          # timeout should be slightly larger, so s3 can retry upload on fail
+          timeout = Pleroma.HTTP.AdapterHelper.Gun.pool_timeout(:upload) + 1_000
+          opts = Keyword.put(op.opts, :timeout, timeout)
+          Map.put(op, :opts, opts)
+        else
+          op
+        end
       else
         {:ok, file_data} = File.read(upload.tempfile)
 

@@ -1,10 +1,12 @@
 # Pleroma: A lightweight social networking server
-# Copyright © 2017-2019 Pleroma Authors <https://pleroma.social/>
+# Copyright © 2017-2021 Pleroma Authors <https://pleroma.social/>
 # SPDX-License-Identifier: AGPL-3.0-only
 
 defmodule Mix.Tasks.Pleroma.Instance do
   use Mix.Task
   import Mix.Pleroma
+
+  alias Pleroma.Config
 
   @shortdoc "Manages Pleroma instance"
   @moduledoc File.read!("docs/administration/CLI_tasks/instance.md")
@@ -31,7 +33,10 @@ defmodule Mix.Tasks.Pleroma.Instance do
           uploads_dir: :string,
           static_dir: :string,
           listen_ip: :string,
-          listen_port: :string
+          listen_port: :string,
+          strip_uploads: :string,
+          anonymize_uploads: :string,
+          dedupe_uploads: :string
         ],
         aliases: [
           o: :output,
@@ -63,7 +68,8 @@ defmodule Mix.Tasks.Pleroma.Instance do
         get_option(
           options,
           :instance_name,
-          "What is the name of your instance? (e.g. Pleroma/Soykaf)"
+          "What is the name of your instance? (e.g. The Corndog Emporium)",
+          domain
         )
 
       email = get_option(options, :admin_email, "What is your admin email address?")
@@ -142,16 +148,53 @@ defmodule Mix.Tasks.Pleroma.Instance do
           options,
           :uploads_dir,
           "What directory should media uploads go in (when using the local uploader)?",
-          Pleroma.Config.get([Pleroma.Uploaders.Local, :uploads])
+          Config.get([Pleroma.Uploaders.Local, :uploads])
         )
+        |> Path.expand()
 
       static_dir =
         get_option(
           options,
           :static_dir,
           "What directory should custom public files be read from (custom emojis, frontend bundle overrides, robots.txt, etc.)?",
-          Pleroma.Config.get([:instance, :static_dir])
+          Config.get([:instance, :static_dir])
         )
+        |> Path.expand()
+
+      {strip_uploads_message, strip_uploads_default} =
+        if Pleroma.Utils.command_available?("exiftool") do
+          {"Do you want to strip location (GPS) data from uploaded images? This requires exiftool, it was detected as installed. (y/n)",
+           "y"}
+        else
+          {"Do you want to strip location (GPS) data from uploaded images? This requires exiftool, it was detected as not installed, please install it if you answer yes. (y/n)",
+           "n"}
+        end
+
+      strip_uploads =
+        get_option(
+          options,
+          :strip_uploads,
+          strip_uploads_message,
+          strip_uploads_default
+        ) === "y"
+
+      anonymize_uploads =
+        get_option(
+          options,
+          :anonymize_uploads,
+          "Do you want to anonymize the filenames of uploads? (y/n)",
+          "n"
+        ) === "y"
+
+      dedupe_uploads =
+        get_option(
+          options,
+          :dedupe_uploads,
+          "Do you want to deduplicate uploaded files? (y/n)",
+          "n"
+        ) === "y"
+
+      Config.put([:instance, :static_dir], static_dir)
 
       secret = :crypto.strong_rand_bytes(64) |> Base.encode64() |> binary_part(0, 64)
       jwt_secret = :crypto.strong_rand_bytes(64) |> Base.encode64() |> binary_part(0, 64)
@@ -181,7 +224,13 @@ defmodule Mix.Tasks.Pleroma.Instance do
           uploads_dir: uploads_dir,
           rum_enabled: rum_enabled,
           listen_ip: listen_ip,
-          listen_port: listen_port
+          listen_port: listen_port,
+          upload_filters:
+            upload_filters(%{
+              strip: strip_uploads,
+              anonymize: anonymize_uploads,
+              dedupe: dedupe_uploads
+            })
         )
 
       result_psql =
@@ -193,38 +242,45 @@ defmodule Mix.Tasks.Pleroma.Instance do
           rum_enabled: rum_enabled
         )
 
+      config_dir = Path.dirname(config_path)
+      psql_dir = Path.dirname(psql_path)
+
+      [config_dir, psql_dir, static_dir, uploads_dir]
+      |> Enum.reject(&File.exists?/1)
+      |> Enum.map(&File.mkdir_p!/1)
+
       shell_info("Writing config to #{config_path}.")
 
       File.write(config_path, result_config)
       shell_info("Writing the postgres script to #{psql_path}.")
       File.write(psql_path, result_psql)
 
-      write_robots_txt(indexable, template_dir)
+      write_robots_txt(static_dir, indexable, template_dir)
 
       shell_info(
-        "\n All files successfully written! Refer to the installation instructions for your platform for next steps"
+        "\n All files successfully written! Refer to the installation instructions for your platform for next steps."
       )
+
+      if db_configurable? do
+        shell_info(
+          " Please transfer your config to the database after running database migrations. Refer to \"Transfering the config to/from the database\" section of the docs for more information."
+        )
+      end
     else
       shell_error(
         "The task would have overwritten the following files:\n" <>
-          (Enum.map(paths, &"- #{&1}\n") |> Enum.join("")) <>
+          (Enum.map(will_overwrite, &"- #{&1}\n") |> Enum.join("")) <>
           "Rerun with `--force` to overwrite them."
       )
     end
   end
 
-  defp write_robots_txt(indexable, template_dir) do
+  defp write_robots_txt(static_dir, indexable, template_dir) do
     robots_txt =
       EEx.eval_file(
         template_dir <> "/robots_txt.eex",
         indexable: indexable
       )
-
-    static_dir = Pleroma.Config.get([:instance, :static_dir], "instance/static/")
-
-    unless File.exists?(static_dir) do
-      File.mkdir_p!(static_dir)
-    end
 
     robots_txt_path = Path.join(static_dir, "robots.txt")
 
@@ -236,4 +292,31 @@ defmodule Mix.Tasks.Pleroma.Instance do
     File.write(robots_txt_path, robots_txt)
     shell_info("Writing #{robots_txt_path}.")
   end
+
+  defp upload_filters(filters) when is_map(filters) do
+    enabled_filters =
+      if filters.strip do
+        [Pleroma.Upload.Filter.Exiftool]
+      else
+        []
+      end
+
+    enabled_filters =
+      if filters.anonymize do
+        enabled_filters ++ [Pleroma.Upload.Filter.AnonymizeFilename]
+      else
+        enabled_filters
+      end
+
+    enabled_filters =
+      if filters.dedupe do
+        enabled_filters ++ [Pleroma.Upload.Filter.Dedupe]
+      else
+        enabled_filters
+      end
+
+    enabled_filters
+  end
+
+  defp upload_filters(_), do: []
 end

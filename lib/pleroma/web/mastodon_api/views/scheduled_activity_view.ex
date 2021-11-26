@@ -1,5 +1,5 @@
 # Pleroma: A lightweight social networking server
-# Copyright © 2017-2019 Pleroma Authors <https://pleroma.social/>
+# Copyright © 2017-2021 Pleroma Authors <https://pleroma.social/>
 # SPDX-License-Identifier: AGPL-3.0-only
 
 defmodule Pleroma.Web.MastodonAPI.ScheduledActivityView do
@@ -30,19 +30,16 @@ defmodule Pleroma.Web.MastodonAPI.ScheduledActivityView do
   defp with_media_attachments(data, _), do: data
 
   defp status_params(params) do
-    data = %{
+    %{
       text: params["status"],
       sensitive: params["sensitive"],
       spoiler_text: params["spoiler_text"],
       visibility: params["visibility"],
       scheduled_at: params["scheduled_at"],
       poll: params["poll"],
-      in_reply_to_id: params["in_reply_to_id"]
+      in_reply_to_id: params["in_reply_to_id"],
+      expires_in: params["expires_in"]
     }
-
-    case params["media_ids"] do
-      nil -> data
-      media_ids -> Map.put(data, :media_ids, media_ids)
-    end
+    |> Pleroma.Maps.put_if_present(:media_ids, params["media_ids"])
   end
 end

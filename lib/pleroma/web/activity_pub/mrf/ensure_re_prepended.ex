@@ -1,12 +1,12 @@
 # Pleroma: A lightweight social networking server
-# Copyright © 2017-2019 Pleroma Authors <https://pleroma.social/>
+# Copyright © 2017-2021 Pleroma Authors <https://pleroma.social/>
 # SPDX-License-Identifier: AGPL-3.0-only
 
 defmodule Pleroma.Web.ActivityPub.MRF.EnsureRePrepended do
   alias Pleroma.Object
 
   @moduledoc "Ensure a re: is prepended on replies to a post with a Subject"
-  @behaviour Pleroma.Web.ActivityPub.MRF
+  @behaviour Pleroma.Web.ActivityPub.MRF.Policy
 
   @reply_prefix Regex.compile!("^re:[[:space:]]*", [:caseless])
 
@@ -27,10 +27,11 @@ defmodule Pleroma.Web.ActivityPub.MRF.EnsureRePrepended do
 
   def filter_by_summary(_in_reply_to, child), do: child
 
-  def filter(%{"type" => "Create", "object" => child_object} = object) do
+  def filter(%{"type" => "Create", "object" => child_object} = object)
+      when is_map(child_object) do
     child =
       child_object["inReplyTo"]
-      |> Object.normalize(child_object["inReplyTo"])
+      |> Object.normalize(fetch: false)
       |> filter_by_summary(child_object)
 
     object = Map.put(object, "object", child)

@@ -1,10 +1,11 @@
 # Pleroma: A lightweight social networking server
-# Copyright © 2017-2019 Pleroma Authors <https://pleroma.social/>
+# Copyright © 2017-2021 Pleroma Authors <https://pleroma.social/>
 # SPDX-License-Identifier: AGPL-3.0-only
 
 defmodule Pleroma.Emoji.Formatter do
   alias Pleroma.Emoji
   alias Pleroma.HTML
+  alias Pleroma.Web.Endpoint
   alias Pleroma.Web.MediaProxy
 
   def emojify(text) do
@@ -38,22 +39,14 @@ defmodule Pleroma.Emoji.Formatter do
 
   def demojify(text, nil), do: text
 
-  @doc "Outputs a list of the emoji-shortcodes in a text"
-  def get_emoji(text) when is_binary(text) do
-    Enum.filter(Emoji.get_all(), fn {emoji, %Emoji{}} ->
-      String.contains?(text, ":#{emoji}:")
-    end)
-  end
-
-  def get_emoji(_), do: []
-
   @doc "Outputs a list of the emoji-Maps in a text"
   def get_emoji_map(text) when is_binary(text) do
-    get_emoji(text)
+    Emoji.get_all()
+    |> Enum.filter(fn {emoji, %Emoji{}} -> String.contains?(text, ":#{emoji}:") end)
     |> Enum.reduce(%{}, fn {name, %Emoji{file: file}}, acc ->
-      Map.put(acc, name, "#{Pleroma.Web.Endpoint.static_url()}#{file}")
+      Map.put(acc, name, to_string(URI.merge(Endpoint.url(), file)))
     end)
   end
 
-  def get_emoji_map(_), do: []
+  def get_emoji_map(_), do: %{}
 end

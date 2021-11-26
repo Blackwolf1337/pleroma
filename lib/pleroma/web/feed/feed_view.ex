@@ -1,5 +1,5 @@
 # Pleroma: A lightweight social networking server
-# Copyright © 2017-2019 Pleroma Authors <https://pleroma.social/>
+# Copyright © 2017-2021 Pleroma Authors <https://pleroma.social/>
 # SPDX-License-Identifier: AGPL-3.0-only
 
 defmodule Pleroma.Web.Feed.FeedView do
@@ -23,7 +23,7 @@ defmodule Pleroma.Web.Feed.FeedView do
   def pub_date(%DateTime{} = date), do: Timex.format!(date, "{RFC822}")
 
   def prepare_activity(activity, opts \\ []) do
-    object = activity_object(activity)
+    object = Object.normalize(activity, fetch: false)
 
     actor =
       if opts[:actor] do
@@ -32,8 +32,8 @@ defmodule Pleroma.Web.Feed.FeedView do
 
     %{
       activity: activity,
-      data: Map.get(object, :data),
       object: object,
+      data: Map.get(object, :data),
       actor: actor
     }
   end
@@ -52,10 +52,10 @@ defmodule Pleroma.Web.Feed.FeedView do
   def feed_logo do
     case Pleroma.Config.get([:feed, :logo]) do
       nil ->
-        "#{Pleroma.Web.base_url()}/static/logo.png"
+        "#{Pleroma.Web.Endpoint.url()}/static/logo.svg"
 
       logo ->
-        "#{Pleroma.Web.base_url()}#{logo}"
+        "#{Pleroma.Web.Endpoint.url()}#{logo}"
     end
     |> MediaProxy.url()
   end
@@ -68,9 +68,7 @@ defmodule Pleroma.Web.Feed.FeedView do
 
   def last_activity(activities), do: List.last(activities)
 
-  def activity_object(activity), do: Object.normalize(activity)
-
-  def activity_title(%{data: %{"content" => content}}, opts \\ %{}) do
+  def activity_title(%{"content" => content}, opts \\ %{}) do
     content
     |> Pleroma.Web.Metadata.Utils.scrub_html()
     |> Pleroma.Emoji.Formatter.demojify()
@@ -78,7 +76,7 @@ defmodule Pleroma.Web.Feed.FeedView do
     |> escape()
   end
 
-  def activity_content(%{data: %{"content" => content}}) do
+  def activity_content(%{"content" => content}) do
     content
     |> String.replace(~r/[\n\r]/, "")
     |> escape()
@@ -86,7 +84,7 @@ defmodule Pleroma.Web.Feed.FeedView do
 
   def activity_content(_), do: ""
 
-  def activity_context(activity), do: activity.data["context"]
+  def activity_context(activity), do: escape(activity.data["context"])
 
   def attachment_href(attachment) do
     attachment["url"]

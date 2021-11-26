@@ -1,12 +1,18 @@
 # Pleroma: A lightweight social networking server
-# Copyright © 2017-2019 Pleroma Authors <https://pleroma.social/>
+# Copyright © 2017-2021 Pleroma Authors <https://pleroma.social/>
 # SPDX-License-Identifier: AGPL-3.0-only
 
 defmodule Pleroma.Web.Metadata do
   alias Phoenix.HTML
 
   def build_tags(params) do
-    Enum.reduce(Pleroma.Config.get([__MODULE__, :providers], []), "", fn parser, acc ->
+    providers = [
+      Pleroma.Web.Metadata.Providers.RelMe,
+      Pleroma.Web.Metadata.Providers.RestrictIndexing
+      | activated_providers()
+    ]
+
+    Enum.reduce(providers, "", fn parser, acc ->
       rendered_html =
         params
         |> parser.build_tags()
@@ -36,5 +42,13 @@ defmodule Pleroma.Web.Metadata do
 
   def activity_nsfw?(_) do
     false
+  end
+
+  defp activated_providers do
+    unless Pleroma.Config.restrict_unauthenticated_access?(:activities, :local) do
+      [Pleroma.Web.Metadata.Providers.Feed | Pleroma.Config.get([__MODULE__, :providers], [])]
+    else
+      []
+    end
   end
 end

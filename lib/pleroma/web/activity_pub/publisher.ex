@@ -1,5 +1,5 @@
 # Pleroma: A lightweight social networking server
-# Copyright © 2017-2019 Pleroma Authors <https://pleroma.social/>
+# Copyright © 2017-2021 Pleroma Authors <https://pleroma.social/>
 # SPDX-License-Identifier: AGPL-3.0-only
 
 defmodule Pleroma.Web.ActivityPub.Publisher do
@@ -49,8 +49,7 @@ defmodule Pleroma.Web.ActivityPub.Publisher do
   """
   def publish_one(%{inbox: inbox, json: json, actor: %User{} = actor, id: id} = params) do
     Logger.debug("Federating #{id} to #{inbox}")
-    %{host: host, path: path} = URI.parse(inbox)
-
+    uri = %{path: path} = URI.parse(inbox)
     digest = "SHA-256=" <> (:crypto.hash(:sha256, json) |> Base.encode64())
 
     date = Pleroma.Signature.signed_date()
@@ -58,7 +57,7 @@ defmodule Pleroma.Web.ActivityPub.Publisher do
     signature =
       Pleroma.Signature.sign(actor, %{
         "(request-target)": "post #{path}",
-        host: host,
+        host: signature_host(uri),
         "content-length": byte_size(json),
         digest: digest,
         date: date
@@ -76,8 +75,9 @@ defmodule Pleroma.Web.ActivityPub.Publisher do
                  {"digest", digest}
                ]
              ) do
-      if !Map.has_key?(params, :unreachable_since) || params[:unreachable_since],
-        do: Instances.set_reachable(inbox)
+      if not Map.has_key?(params, :unreachable_since) || params[:unreachable_since] do
+        Instances.set_reachable(inbox)
+      end
 
       result
     else
@@ -96,6 +96,14 @@ defmodule Pleroma.Web.ActivityPub.Publisher do
     |> publish_one()
   end
 
+  defp signature_host(%URI{port: port, scheme: scheme, host: host}) do
+    if port == URI.default_port(scheme) do
+      host
+    else
+      "#{host}:#{port}"
+    end
+  end
+
   defp should_federate?(inbox, public) do
     if public do
       true
@@ -104,6 +112,7 @@ defmodule Pleroma.Web.ActivityPub.Publisher do
 
       quarantined_instances =
         Config.get([:instance, :quarantined_instances], [])
+        |> Pleroma.Web.ActivityPub.MRF.instance_list_from_tuples()
         |> Pleroma.Web.ActivityPub.MRF.subdomains_regex()
 
       !Pleroma.Web.ActivityPub.MRF.subdomain_match?(quarantined_instances, host)
@@ -121,7 +130,7 @@ defmodule Pleroma.Web.ActivityPub.Publisher do
 
     fetchers =
       with %Activity{data: %{"type" => "Delete"}} <- activity,
-           %Object{id: object_id} <- Object.normalize(activity),
+           %Object{id: object_id} <- Object.normalize(activity, fetch: false),
            fetchers <- User.get_delivered_users_by_object_id(object_id),
            _ <- Delivery.delete_all_by_object_id(object_id) do
         fetchers
@@ -141,8 +150,8 @@ defmodule Pleroma.Web.ActivityPub.Publisher do
     |> Enum.map(& &1.ap_id)
   end
 
-  defp maybe_use_sharedinbox(%User{source_data: data}),
-    do: (is_map(data["endpoints"]) && Map.get(data["endpoints"], "sharedInbox")) || data["inbox"]
+  defp maybe_use_sharedinbox(%User{shared_inbox: nil, inbox: inbox}), do: inbox
+  defp maybe_use_sharedinbox(%User{shared_inbox: shared_inbox}), do: shared_inbox
 
   @doc """
   Determine a user inbox to use based on heuristics.  These heuristics
@@ -157,7 +166,7 @@ defmodule Pleroma.Web.ActivityPub.Publisher do
   """
   def determine_inbox(
         %Activity{data: activity_data},
-        %User{source_data: data} = user
+        %User{inbox: inbox} = user
       ) do
     to = activity_data["to"] || []
     cc = activity_data["cc"] || []
@@ -174,7 +183,7 @@ defmodule Pleroma.Web.ActivityPub.Publisher do
         maybe_use_sharedinbox(user)
 
       true ->
-        data["inbox"]
+        inbox
     end
   end
 
@@ -192,14 +201,13 @@ defmodule Pleroma.Web.ActivityPub.Publisher do
     inboxes =
       recipients
       |> Enum.filter(&User.ap_enabled?/1)
-      |> Enum.map(fn %{source_data: data} -> data["inbox"] end)
+      |> Enum.map(fn actor -> actor.inbox end)
       |> Enum.filter(fn inbox -> should_federate?(inbox, public) end)
       |> Instances.filter_reachable()
 
     Repo.checkout(fn ->
       Enum.each(inboxes, fn {inbox, unreachable_since} ->
-        %User{ap_id: ap_id} =
-          Enum.find(recipients, fn %{source_data: data} -> data["inbox"] == inbox end)
+        %User{ap_id: ap_id} = Enum.find(recipients, fn actor -> actor.inbox == inbox end)
 
         # Get all the recipients on the same host and add them to cc. Otherwise, a remote
         # instance would only accept a first message for the first recipient and ignore the rest.
@@ -221,9 +229,7 @@ defmodule Pleroma.Web.ActivityPub.Publisher do
     end)
   end
 
-  @doc """
-  Publishes an activity to all relevant peers.
-  """
+  # Publishes an activity to all relevant peers.
   def publish(%User{} = actor, %Activity{} = activity) do
     public = is_public?(activity)
 
@@ -267,7 +273,7 @@ defmodule Pleroma.Web.ActivityPub.Publisher do
       },
       %{
         "rel" => "http://ostatus.org/schema/1.0/subscribe",
-        "template" => "#{Pleroma.Web.base_url()}/ostatus_subscribe?acct={uri}"
+        "template" => "#{Pleroma.Web.Endpoint.url()}/ostatus_subscribe?acct={uri}"
       }
     ]
   end

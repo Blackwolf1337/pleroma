@@ -1,5 +1,5 @@
 # Pleroma: A lightweight social networking server
-# Copyright © 2017-2019 Pleroma Authors <https://pleroma.social/>
+# Copyright © 2017-2021 Pleroma Authors <https://pleroma.social/>
 # SPDX-License-Identifier: AGPL-3.0-only
 
 defmodule Pleroma.Web.ConnCase do
@@ -19,12 +19,17 @@ defmodule Pleroma.Web.ConnCase do
 
   use ExUnit.CaseTemplate
 
+  alias Pleroma.DataCase
+
   using do
     quote do
       # Import conveniences for testing with connections
-      use Phoenix.ConnTest
+      import Plug.Conn
+      import Phoenix.ConnTest
       use Pleroma.Tests.Helpers
       import Pleroma.Web.Router.Helpers
+
+      alias Pleroma.Config
 
       # The default endpoint for testing
       @endpoint Pleroma.Web.Endpoint
@@ -48,21 +53,72 @@ defmodule Pleroma.Web.ConnCase do
 
         %{user: user, token: token, conn: conn}
       end
+
+      defp request_content_type(%{conn: conn}) do
+        conn = put_req_header(conn, "content-type", "multipart/form-data")
+        [conn: conn]
+      end
+
+      defp empty_json_response(conn) do
+        body = response(conn, 204)
+        response_content_type(conn, :json)
+
+        body
+      end
+
+      defp json_response_and_validate_schema(
+             %{private: %{operation_id: op_id}} = conn,
+             status
+           ) do
+        {spec, lookup} = OpenApiSpex.Plug.PutApiSpec.get_spec_and_operation_lookup(conn)
+
+        content_type =
+          conn
+          |> Plug.Conn.get_resp_header("content-type")
+          |> List.first()
+          |> String.split(";")
+          |> List.first()
+
+        status = Plug.Conn.Status.code(status)
+
+        unless lookup[op_id].responses[status] do
+          err = "Response schema not found for #{status} #{conn.method} #{conn.request_path}"
+          flunk(err)
+        end
+
+        schema = lookup[op_id].responses[status].content[content_type].schema
+        json = if status == 204, do: empty_json_response(conn), else: json_response(conn, status)
+
+        case OpenApiSpex.cast_value(json, schema, spec) do
+          {:ok, _data} ->
+            json
+
+          {:error, errors} ->
+            errors =
+              Enum.map(errors, fn error ->
+                message = OpenApiSpex.Cast.Error.message(error)
+                path = OpenApiSpex.Cast.Error.path_to_string(error)
+                "#{message} at #{path}"
+              end)
+
+            flunk(
+              "Response does not conform to schema of #{op_id} operation: #{Enum.join(errors, "\n")}\n#{inspect(json)}"
+            )
+        end
+      end
+
+      defp json_response_and_validate_schema(conn, _status) do
+        flunk("Response schema not found for #{conn.method} #{conn.request_path} #{conn.status}")
+      end
     end
   end
 
   setup tags do
-    Cachex.clear(:user_cache)
-    Cachex.clear(:object_cache)
-    :ok = Ecto.Adapters.SQL.Sandbox.checkout(Pleroma.Repo)
+    DataCase.setup_multi_process_mode(tags)
+    DataCase.setup_streamer(tags)
+    DataCase.stub_pipeline()
 
-    unless tags[:async] do
-      Ecto.Adapters.SQL.Sandbox.mode(Pleroma.Repo, {:shared, self()})
-    end
-
-    if tags[:needs_streamer] do
-      start_supervised(Pleroma.Web.Streamer.supervisor())
-    end
+    Mox.verify_on_exit!()
 
     {:ok, conn: Phoenix.ConnTest.build_conn()}
   end

@@ -1,52 +1,33 @@
 # Pleroma: A lightweight social networking server
-# Copyright © 2017-2019 Pleroma Authors <https://pleroma.social/>
+# Copyright © 2017-2021 Pleroma Authors <https://pleroma.social/>
 # SPDX-License-Identifier: AGPL-3.0-only
 
 defmodule Pleroma.Web.CommonAPI.Utils do
   import Pleroma.Web.Gettext
-  import Pleroma.Web.ControllerHelper, only: [truthy_param?: 1]
 
   alias Calendar.Strftime
   alias Pleroma.Activity
   alias Pleroma.Config
   alias Pleroma.Conversation.Participation
-  alias Pleroma.Emoji
   alias Pleroma.Formatter
   alias Pleroma.Object
-  alias Pleroma.Plugs.AuthenticationPlug
   alias Pleroma.Repo
   alias Pleroma.User
   alias Pleroma.Web.ActivityPub.Utils
   alias Pleroma.Web.ActivityPub.Visibility
-  alias Pleroma.Web.Endpoint
+  alias Pleroma.Web.CommonAPI.ActivityDraft
   alias Pleroma.Web.MediaProxy
+  alias Pleroma.Web.Plugs.AuthenticationPlug
+  alias Pleroma.Web.Utils.Params
 
   require Logger
   require Pleroma.Constants
 
-  # This is a hack for twidere.
-  def get_by_id_or_ap_id(id) do
-    activity =
-      with true <- FlakeId.flake_id?(id),
-           %Activity{} = activity <- Activity.get_by_id_with_object(id) do
-        activity
-      else
-        _ -> Activity.get_create_by_object_ap_id_with_object(id)
-      end
-
-    activity &&
-      if activity.data["type"] == "Create" do
-        activity
-      else
-        Activity.get_create_by_object_ap_id_with_object(activity.data["object"])
-      end
-  end
-
-  def attachments_from_ids(%{"media_ids" => ids, "descriptions" => desc} = _) do
+  def attachments_from_ids(%{media_ids: ids, descriptions: desc}) do
     attachments_from_ids_descs(ids, desc)
   end
 
-  def attachments_from_ids(%{"media_ids" => ids} = _) do
+  def attachments_from_ids(%{media_ids: ids}) do
     attachments_from_ids_no_descs(ids)
   end
 
@@ -57,11 +38,11 @@ defmodule Pleroma.Web.CommonAPI.Utils do
   def attachments_from_ids_no_descs(ids) do
     Enum.map(ids, fn media_id ->
       case Repo.get(Object, media_id) do
-        %Object{data: data} = _ -> data
+        %Object{data: data} -> data
         _ -> nil
       end
     end)
-    |> Enum.filter(& &1)
+    |> Enum.reject(&is_nil/1)
   end
 
   def attachments_from_ids_descs([], _), do: []
@@ -70,66 +51,62 @@ defmodule Pleroma.Web.CommonAPI.Utils do
     {_, descs} = Jason.decode(descs_str)
 
     Enum.map(ids, fn media_id ->
-      case Repo.get(Object, media_id) do
-        %Object{data: data} = _ ->
-          Map.put(data, "name", descs[media_id])
-
-        _ ->
-          nil
+      with %Object{data: data} <- Repo.get(Object, media_id) do
+        Map.put(data, "name", descs[media_id])
       end
     end)
-    |> Enum.filter(& &1)
+    |> Enum.reject(&is_nil/1)
   end
 
-  @spec get_to_and_cc(
-          User.t(),
-          list(String.t()),
-          Activity.t() | nil,
-          String.t(),
-          Participation.t() | nil
-        ) :: {list(String.t()), list(String.t())}
+  @spec get_to_and_cc(ActivityDraft.t()) :: {list(String.t()), list(String.t())}
 
-  def get_to_and_cc(_, _, _, _, %Participation{} = participation) do
+  def get_to_and_cc(%{in_reply_to_conversation: %Participation{} = participation}) do
     participation = Repo.preload(participation, :recipients)
     {Enum.map(participation.recipients, & &1.ap_id), []}
   end
 
-  def get_to_and_cc(user, mentioned_users, inReplyTo, "public", _) do
-    to = [Pleroma.Constants.as_public() | mentioned_users]
-    cc = [user.follower_address]
+  def get_to_and_cc(%{visibility: visibility} = draft) when visibility in ["public", "local"] do
+    to =
+      case visibility do
+        "public" -> [Pleroma.Constants.as_public() | draft.mentions]
+        "local" -> [Utils.as_local_public() | draft.mentions]
+      end
 
-    if inReplyTo do
-      {Enum.uniq([inReplyTo.data["actor"] | to]), cc}
+    cc = [draft.user.follower_address]
+
+    if draft.in_reply_to do
+      {Enum.uniq([draft.in_reply_to.data["actor"] | to]), cc}
     else
       {to, cc}
     end
   end
 
-  def get_to_and_cc(user, mentioned_users, inReplyTo, "unlisted", _) do
-    to = [user.follower_address | mentioned_users]
+  def get_to_and_cc(%{visibility: "unlisted"} = draft) do
+    to = [draft.user.follower_address | draft.mentions]
     cc = [Pleroma.Constants.as_public()]
 
-    if inReplyTo do
-      {Enum.uniq([inReplyTo.data["actor"] | to]), cc}
+    if draft.in_reply_to do
+      {Enum.uniq([draft.in_reply_to.data["actor"] | to]), cc}
     else
       {to, cc}
     end
   end
 
-  def get_to_and_cc(user, mentioned_users, inReplyTo, "private", _) do
-    {to, cc} = get_to_and_cc(user, mentioned_users, inReplyTo, "direct", nil)
-    {[user.follower_address | to], cc}
+  def get_to_and_cc(%{visibility: "private"} = draft) do
+    {to, cc} = get_to_and_cc(struct(draft, visibility: "direct"))
+    {[draft.user.follower_address | to], cc}
   end
 
-  def get_to_and_cc(_user, mentioned_users, inReplyTo, "direct", _) do
-    if inReplyTo do
-      {Enum.uniq([inReplyTo.data["actor"] | mentioned_users]), []}
+  def get_to_and_cc(%{visibility: "direct"} = draft) do
+    # If the OP is a DM already, add the implicit actor.
+    if draft.in_reply_to && Visibility.is_direct?(draft.in_reply_to) do
+      {Enum.uniq([draft.in_reply_to.data["actor"] | draft.mentions]), []}
     else
-      {mentioned_users, []}
+      {draft.mentions, []}
     end
   end
 
-  def get_to_and_cc(_user, mentions, _inReplyTo, {:list, _}, _), do: {mentions, []}
+  def get_to_and_cc(%{visibility: {:list, _}, mentions: mentions}), do: {mentions, []}
 
   def get_addressed_users(_, to) when is_list(to) do
     User.get_ap_ids_by_nicknames(to)
@@ -160,9 +137,9 @@ defmodule Pleroma.Web.CommonAPI.Utils do
     |> make_poll_data()
   end
 
-  def make_poll_data(%{"poll" => %{"options" => options, "expires_in" => expires_in}} = data)
+  def make_poll_data(%{poll: %{options: options, expires_in: expires_in}} = data)
       when is_list(options) do
-    limits = Pleroma.Config.get([:instance, :poll_limits])
+    limits = Config.get([:instance, :poll_limits])
 
     with :ok <- validate_poll_expiration(expires_in, limits),
          :ok <- validate_poll_options_amount(options, limits),
@@ -175,7 +152,7 @@ defmodule Pleroma.Web.CommonAPI.Utils do
             "replies" => %{"type" => "Collection", "totalItems" => 0}
           }
 
-          {note, Map.merge(emoji, Emoji.Formatter.get_emoji_map(option))}
+          {note, Map.merge(emoji, Pleroma.Emoji.Formatter.get_emoji_map(option))}
         end)
 
       end_time =
@@ -183,7 +160,7 @@ defmodule Pleroma.Web.CommonAPI.Utils do
         |> DateTime.add(expires_in)
         |> DateTime.to_iso8601()
 
-      key = if truthy_param?(data["poll"]["multiple"]), do: "anyOf", else: "oneOf"
+      key = if Params.truthy_param?(data.poll[:multiple]), do: "anyOf", else: "oneOf"
       poll = %{"type" => "Question", key => option_notes, "closed" => end_time}
 
       {:ok, {poll, emoji}}
@@ -222,30 +199,24 @@ defmodule Pleroma.Web.CommonAPI.Utils do
     end
   end
 
-  def make_content_html(
-        status,
-        attachments,
-        data,
-        visibility
-      ) do
+  def make_content_html(%ActivityDraft{} = draft) do
     attachment_links =
-      data
+      draft.params
       |> Map.get("attachment_links", Config.get([:instance, :attachment_links]))
-      |> truthy_param?()
+      |> Params.truthy_param?()
 
-    content_type = get_content_type(data["content_type"])
+    content_type = get_content_type(draft.params[:content_type])
 
     options =
-      if visibility == "direct" && Config.get([:instance, :safe_dm_mentions]) do
+      if draft.visibility == "direct" && Config.get([:instance, :safe_dm_mentions]) do
         [safe_mention: true]
       else
         []
       end
 
-    status
+    draft.status
     |> format_input(content_type, options)
-    |> maybe_add_attachments(attachments, attachment_links)
-    |> maybe_add_nsfw_tag(data)
+    |> maybe_add_attachments(draft.attachments, attachment_links)
   end
 
   defp get_content_type(content_type) do
@@ -255,13 +226,6 @@ defmodule Pleroma.Web.CommonAPI.Utils do
       "text/plain"
     end
   end
-
-  defp maybe_add_nsfw_tag({text, mentions, tags}, %{"sensitive" => sensitive})
-       when sensitive in [true, "True", "true", "1"] do
-    {text, mentions, [{"#nsfw", "nsfw"} | tags]}
-  end
-
-  defp maybe_add_nsfw_tag(data, _), do: data
 
   def make_context(_, %Participation{} = participation) do
     Repo.preload(participation, :conversation).conversation.ap_id
@@ -293,7 +257,7 @@ defmodule Pleroma.Web.CommonAPI.Utils do
   def format_input(text, format, options \\ [])
 
   @doc """
-  Formatting text to plain text.
+  Formatting text to plain text, BBCode, HTML, or Markdown
   """
   def format_input(text, "text/plain", options) do
     text
@@ -304,9 +268,6 @@ defmodule Pleroma.Web.CommonAPI.Utils do
         end).()
   end
 
-  @doc """
-  Formatting text as BBCode.
-  """
   def format_input(text, "text/bbcode", options) do
     text
     |> String.replace(~r/\r/, "")
@@ -316,63 +277,18 @@ defmodule Pleroma.Web.CommonAPI.Utils do
     |> Formatter.linkify(options)
   end
 
-  @doc """
-  Formatting text to html.
-  """
   def format_input(text, "text/html", options) do
     text
     |> Formatter.html_escape("text/html")
     |> Formatter.linkify(options)
   end
 
-  @doc """
-  Formatting text to markdown.
-  """
   def format_input(text, "text/markdown", options) do
     text
     |> Formatter.mentions_escape(options)
-    |> Earmark.as_html!()
+    |> Formatter.markdown_to_html()
     |> Formatter.linkify(options)
     |> Formatter.html_escape("text/html")
-  end
-
-  def make_note_data(
-        actor,
-        to,
-        context,
-        content_html,
-        attachments,
-        in_reply_to,
-        tags,
-        summary \\ nil,
-        cc \\ [],
-        sensitive \\ false,
-        extra_params \\ %{}
-      ) do
-    %{
-      "type" => "Note",
-      "to" => to,
-      "cc" => cc,
-      "content" => content_html,
-      "summary" => summary,
-      "sensitive" => truthy_param?(sensitive),
-      "context" => context,
-      "attachment" => attachments,
-      "actor" => actor,
-      "tag" => Keyword.values(tags) |> Enum.uniq()
-    }
-    |> add_in_reply_to(in_reply_to)
-    |> Map.merge(extra_params)
-  end
-
-  defp add_in_reply_to(object, nil), do: object
-
-  defp add_in_reply_to(object, in_reply_to) do
-    with %Object{} = in_reply_to_object <- Object.normalize(in_reply_to) do
-      Map.put(object, "inReplyTo", in_reply_to_object.data["id"])
-    else
-      _ -> object
-    end
   end
 
   def format_naive_asctime(date) do
@@ -415,13 +331,16 @@ defmodule Pleroma.Web.CommonAPI.Utils do
   def to_masto_date(_), do: ""
 
   defp shortname(name) do
-    if String.length(name) < 30 do
-      name
+    with max_length when max_length > 0 <-
+           Config.get([Pleroma.Upload, :filename_display_max_length], 30),
+         true <- String.length(name) > max_length do
+      String.slice(name, 0..max_length) <> "…"
     else
-      String.slice(name, 0..30) <> "…"
+      _ -> name
     end
   end
 
+  @spec confirm_current_password(User.t(), String.t()) :: {:ok, User.t()} | {:error, String.t()}
   def confirm_current_password(user, password) do
     with %User{local: true} = db_user <- User.get_cached_by_id(user.id),
          true <- AuthenticationPlug.checkpw(password, db_user.password_hash) do
@@ -429,19 +348,6 @@ defmodule Pleroma.Web.CommonAPI.Utils do
     else
       _ -> {:error, dgettext("errors", "Invalid password.")}
     end
-  end
-
-  def emoji_from_profile(%User{bio: bio, name: name}) do
-    [bio, name]
-    |> Enum.map(&Emoji.Formatter.get_emoji/1)
-    |> Enum.concat()
-    |> Enum.map(fn {shortcode, %Emoji{file: path}} ->
-      %{
-        "type" => "Emoji",
-        "icon" => %{"type" => "Image", "url" => "#{Endpoint.url()}#{path}"},
-        "name" => ":#{shortcode}:"
-      }
-    end)
   end
 
   def maybe_notify_to_recipients(
@@ -458,7 +364,7 @@ defmodule Pleroma.Web.CommonAPI.Utils do
         %Activity{data: %{"to" => _to, "type" => type} = data} = activity
       )
       when type == "Create" do
-    object = Object.normalize(activity)
+    object = Object.normalize(activity, fetch: false)
 
     object_data =
       cond do
@@ -479,19 +385,14 @@ defmodule Pleroma.Web.CommonAPI.Utils do
 
   def maybe_notify_mentioned_recipients(recipients, _), do: recipients
 
-  # Do not notify subscribers if author is making a reply
-  def maybe_notify_subscribers(recipients, %Activity{
-        object: %Object{data: %{"inReplyTo" => _ap_id}}
-      }) do
-    recipients
-  end
-
   def maybe_notify_subscribers(
         recipients,
-        %Activity{data: %{"actor" => actor, "type" => type}} = activity
-      )
-      when type == "Create" do
-    with %User{} = user <- User.get_cached_by_ap_id(actor) do
+        %Activity{data: %{"actor" => actor, "type" => "Create"}} = activity
+      ) do
+    # Do not notify subscribers if author is making a reply
+    with %Object{data: object} <- Object.normalize(activity, fetch: false),
+         nil <- object["inReplyTo"],
+         %User{} = user <- User.get_cached_by_ap_id(actor) do
       subscriber_ids =
         user
         |> User.subscriber_users()
@@ -499,6 +400,8 @@ defmodule Pleroma.Web.CommonAPI.Utils do
         |> Enum.map(& &1.ap_id)
 
       recipients ++ subscriber_ids
+    else
+      _e -> recipients
     end
   end
 
@@ -510,6 +413,8 @@ defmodule Pleroma.Web.CommonAPI.Utils do
       |> User.get_followers()
       |> Enum.map(& &1.ap_id)
       |> Enum.concat(recipients)
+    else
+      _e -> recipients
     end
   end
 
@@ -527,7 +432,7 @@ defmodule Pleroma.Web.CommonAPI.Utils do
   def make_report_content_html(nil), do: {:ok, {nil, [], []}}
 
   def make_report_content_html(comment) do
-    max_size = Pleroma.Config.get([:instance, :max_report_comment_size], 1000)
+    max_size = Config.get([:instance, :max_report_comment_size], 1000)
 
     if String.length(comment) <= max_size do
       {:ok, format_input(comment, "text/plain")}
@@ -537,7 +442,8 @@ defmodule Pleroma.Web.CommonAPI.Utils do
     end
   end
 
-  def get_report_statuses(%User{ap_id: actor}, %{"status_ids" => status_ids}) do
+  def get_report_statuses(%User{ap_id: actor}, %{status_ids: status_ids})
+      when is_list(status_ids) do
     {:ok, Activity.all_by_actor_and_id(actor, status_ids)}
   end
 
@@ -572,26 +478,15 @@ defmodule Pleroma.Web.CommonAPI.Utils do
     end
   end
 
-  def make_answer_data(%User{ap_id: ap_id}, object, name) do
-    %{
-      "type" => "Answer",
-      "actor" => ap_id,
-      "cc" => [object.data["actor"]],
-      "to" => [],
-      "name" => name,
-      "inReplyTo" => object.data["id"]
-    }
-  end
-
   def validate_character_limit("" = _full_payload, [] = _attachments) do
     {:error, dgettext("errors", "Cannot post an empty status without attachments")}
   end
 
   def validate_character_limit(full_payload, _attachments) do
-    limit = Pleroma.Config.get([:instance, :limit])
+    limit = Config.get([:instance, :limit])
     length = String.length(full_payload)
 
-    if length < limit do
+    if length <= limit do
       :ok
     else
       {:error, dgettext("errors", "The status is over the character limit")}

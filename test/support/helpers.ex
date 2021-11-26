@@ -1,5 +1,5 @@
 # Pleroma: A lightweight social networking server
-# Copyright © 2017-2019 Pleroma Authors <https://pleroma.social/>
+# Copyright © 2017-2021 Pleroma Authors <https://pleroma.social/>
 # SPDX-License-Identifier: AGPL-3.0-only
 
 defmodule Pleroma.Tests.Helpers do
@@ -7,6 +7,8 @@ defmodule Pleroma.Tests.Helpers do
   Helpers for use in tests.
   """
   alias Pleroma.Config
+
+  require Logger
 
   defmacro clear_config(config_path) do
     quote do
@@ -17,31 +19,43 @@ defmodule Pleroma.Tests.Helpers do
 
   defmacro clear_config(config_path, do: yield) do
     quote do
-      setup do
-        initial_setting = Config.get(unquote(config_path))
-        unquote(yield)
-        on_exit(fn -> Config.put(unquote(config_path), initial_setting) end)
-        :ok
+      initial_setting = Config.fetch(unquote(config_path))
+
+      unquote(yield)
+
+      on_exit(fn ->
+        case initial_setting do
+          :error ->
+            Config.delete(unquote(config_path))
+
+          {:ok, value} ->
+            Config.put(unquote(config_path), value)
+        end
+      end)
+
+      :ok
+    end
+  end
+
+  defmacro clear_config(config_path, temp_setting) do
+    # NOTE: `clear_config([section, key], value)` != `clear_config([section], key: value)` (!)
+    # Displaying a warning to prevent unintentional clearing of all but one keys in section
+    if Keyword.keyword?(temp_setting) and length(temp_setting) == 1 do
+      Logger.warn(
+        "Please change `clear_config([section], key: value)` to `clear_config([section, key], value)`"
+      )
+    end
+
+    quote do
+      clear_config(unquote(config_path)) do
+        Config.put(unquote(config_path), unquote(temp_setting))
       end
     end
   end
 
-  defmacro clear_config_all(config_path) do
-    quote do
-      clear_config_all(unquote(config_path)) do
-      end
-    end
-  end
-
-  defmacro clear_config_all(config_path, do: yield) do
-    quote do
-      setup_all do
-        initial_setting = Config.get(unquote(config_path))
-        unquote(yield)
-        on_exit(fn -> Config.put(unquote(config_path), initial_setting) end)
-        :ok
-      end
-    end
+  def require_migration(migration_name) do
+    [{module, _}] = Code.require_file("#{migration_name}.exs", "priv/repo/migrations")
+    {:ok, %{migration: module}}
   end
 
   defmacro __using__(_opts) do
@@ -49,15 +63,27 @@ defmodule Pleroma.Tests.Helpers do
       import Pleroma.Tests.Helpers,
         only: [
           clear_config: 1,
-          clear_config: 2,
-          clear_config_all: 1,
-          clear_config_all: 2
+          clear_config: 2
         ]
 
-      def to_datetime(naive_datetime) do
+      def time_travel(entity, seconds) do
+        new_time = NaiveDateTime.add(entity.inserted_at, seconds)
+
+        entity
+        |> Ecto.Changeset.change(%{inserted_at: new_time, updated_at: new_time})
+        |> Pleroma.Repo.update()
+      end
+
+      def to_datetime(%NaiveDateTime{} = naive_datetime) do
         naive_datetime
         |> DateTime.from_naive!("Etc/UTC")
         |> DateTime.truncate(:second)
+      end
+
+      def to_datetime(datetime) when is_binary(datetime) do
+        datetime
+        |> NaiveDateTime.from_iso8601!()
+        |> to_datetime()
       end
 
       def collect_ids(collection) do
@@ -78,8 +104,8 @@ defmodule Pleroma.Tests.Helpers do
         assigns = Map.new(assigns)
 
         view.render(template, assigns)
-        |> Poison.encode!()
-        |> Poison.decode!()
+        |> Jason.encode!()
+        |> Jason.decode!()
       end
 
       def stringify_keys(nil), do: nil

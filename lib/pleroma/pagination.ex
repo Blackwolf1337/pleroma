@@ -1,5 +1,5 @@
 # Pleroma: A lightweight social networking server
-# Copyright © 2017-2019 Pleroma Authors <https://pleroma.social/>
+# Copyright © 2017-2021 Pleroma Authors <https://pleroma.social/>
 # SPDX-License-Identifier: AGPL-3.0-only
 
 defmodule Pleroma.Pagination do
@@ -12,19 +12,23 @@ defmodule Pleroma.Pagination do
 
   alias Pleroma.Repo
 
+  @type type :: :keyset | :offset
+
   @default_limit 20
+  @max_limit 40
   @page_keys ["max_id", "min_id", "limit", "since_id", "order"]
 
   def page_keys, do: @page_keys
 
+  @spec fetch_paginated(Ecto.Query.t(), map(), type(), atom() | nil) :: [Ecto.Schema.t()]
   def fetch_paginated(query, params, type \\ :keyset, table_binding \\ nil)
 
-  def fetch_paginated(query, %{"total" => true} = params, :keyset, table_binding) do
+  def fetch_paginated(query, %{total: true} = params, :keyset, table_binding) do
     total = Repo.aggregate(query, :count, :id)
 
     %{
       total: total,
-      items: fetch_paginated(query, Map.drop(params, ["total"]), :keyset, table_binding)
+      items: fetch_paginated(query, Map.drop(params, [:total]), :keyset, table_binding)
     }
   end
 
@@ -37,7 +41,7 @@ defmodule Pleroma.Pagination do
     |> enforce_order(options)
   end
 
-  def fetch_paginated(query, %{"total" => true} = params, :offset, table_binding) do
+  def fetch_paginated(query, %{total: true} = params, :offset, table_binding) do
     total =
       query
       |> Ecto.Query.exclude(:left_join)
@@ -45,7 +49,7 @@ defmodule Pleroma.Pagination do
 
     %{
       total: total,
-      items: fetch_paginated(query, Map.drop(params, ["total"]), :offset, table_binding)
+      items: fetch_paginated(query, Map.drop(params, [:total]), :offset, table_binding)
     }
   end
 
@@ -57,7 +61,14 @@ defmodule Pleroma.Pagination do
     |> Repo.all()
   end
 
+  @spec paginate(Ecto.Query.t(), map(), type(), atom() | nil) :: [Ecto.Schema.t()]
   def paginate(query, options, method \\ :keyset, table_binding \\ nil)
+
+  def paginate(list, options, _method, _table_binding) when is_list(list) do
+    offset = options[:offset] || 0
+    limit = options[:limit] || 0
+    Enum.slice(list, offset, limit)
+  end
 
   def paginate(query, options, :keyset, table_binding) do
     query
@@ -82,14 +93,9 @@ defmodule Pleroma.Pagination do
       max_id: :string,
       offset: :integer,
       limit: :integer,
+      skip_extra_order: :boolean,
       skip_order: :boolean
     }
-
-    params =
-      Enum.reduce(params, %{}, fn
-        {key, _value}, acc when is_atom(key) -> Map.drop(acc, [key])
-        {key, value}, acc -> Map.put(acc, key, value)
-      end)
 
     changeset = cast({%{}, param_types}, params, Map.keys(param_types))
     changeset.changes
@@ -108,6 +114,8 @@ defmodule Pleroma.Pagination do
   end
 
   defp restrict(query, :order, %{skip_order: true}, _), do: query
+
+  defp restrict(%{order_bys: [_ | _]} = query, :order, %{skip_extra_order: true}, _), do: query
 
   defp restrict(query, :order, %{min_id: _}, table_binding) do
     order_by(
@@ -130,7 +138,11 @@ defmodule Pleroma.Pagination do
   end
 
   defp restrict(query, :limit, options, _table_binding) do
-    limit = Map.get(options, :limit, @default_limit)
+    limit =
+      case Map.get(options, :limit, @default_limit) do
+        limit when limit < @max_limit -> limit
+        _ -> @max_limit
+      end
 
     query
     |> limit(^limit)

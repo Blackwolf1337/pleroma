@@ -1,5 +1,5 @@
 # Pleroma: A lightweight social networking server
-# Copyright © 2017-2019 Pleroma Authors <https://pleroma.social/>
+# Copyright © 2017-2021 Pleroma Authors <https://pleroma.social/>
 # SPDX-License-Identifier: AGPL-3.0-only
 
 defmodule Pleroma.Workers.Cron.DigestEmailsWorker do
@@ -19,7 +19,7 @@ defmodule Pleroma.Workers.Cron.DigestEmailsWorker do
   require Logger
 
   @impl Oban.Worker
-  def perform(_opts, _job) do
+  def perform(_job) do
     config = Config.get([:email_notifications, :digest])
 
     if config[:active] do
@@ -31,12 +31,15 @@ defmodule Pleroma.Workers.Cron.DigestEmailsWorker do
 
       from(u in inactive_users_query,
         where: fragment(~s(? ->'digest' @> 'true'), u.email_notifications),
+        where: not is_nil(u.email),
         where: u.last_digest_emailed_at < datetime_add(^now, ^negative_interval, "day"),
         select: u
       )
       |> Repo.all()
       |> send_emails
     end
+
+    :ok
   end
 
   def send_emails(users) do

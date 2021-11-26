@@ -1,5 +1,5 @@
 # Pleroma: A lightweight social networking server
-# Copyright © 2017-2019 Pleroma Authors <https://pleroma.social/>
+# Copyright © 2017-2021 Pleroma Authors <https://pleroma.social/>
 # SPDX-License-Identifier: AGPL-3.0-onl
 
 defmodule Mix.Tasks.Pleroma.Ecto.Migrate do
@@ -40,6 +40,10 @@ defmodule Mix.Tasks.Pleroma.Ecto.Migrate do
   def run(args \\ []) do
     load_pleroma()
     {opts, _} = OptionParser.parse!(args, strict: @switches, aliases: @aliases)
+
+    if Application.get_env(:pleroma, Pleroma.Repo)[:ssl] do
+      Application.ensure_all_started(:ssl)
+    end
 
     opts =
       if opts[:to] || opts[:step] || opts[:all],

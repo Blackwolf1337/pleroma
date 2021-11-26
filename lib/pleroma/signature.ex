@@ -1,10 +1,11 @@
 # Pleroma: A lightweight social networking server
-# Copyright © 2017-2019 Pleroma Authors <https://pleroma.social/>
+# Copyright © 2017-2021 Pleroma Authors <https://pleroma.social/>
 # SPDX-License-Identifier: AGPL-3.0-only
 
 defmodule Pleroma.Signature do
   @behaviour HTTPSignatures.Adapter
 
+  alias Pleroma.EctoType.ActivityPub.ObjectValidators
   alias Pleroma.Keys
   alias Pleroma.User
   alias Pleroma.Web.ActivityPub.ActivityPub
@@ -21,12 +22,23 @@ defmodule Pleroma.Signature do
         uri
       end
 
-    URI.to_string(uri)
+    maybe_ap_id = URI.to_string(uri)
+
+    case ObjectValidators.ObjectID.cast(maybe_ap_id) do
+      {:ok, ap_id} ->
+        {:ok, ap_id}
+
+      _ ->
+        case Pleroma.Web.WebFinger.finger(maybe_ap_id) do
+          %{"ap_id" => ap_id} -> {:ok, ap_id}
+          _ -> {:error, maybe_ap_id}
+        end
+    end
   end
 
   def fetch_public_key(conn) do
     with %{"keyId" => kid} <- HTTPSignatures.signature_for_conn(conn),
-         actor_id <- key_id_to_actor_id(kid),
+         {:ok, actor_id} <- key_id_to_actor_id(kid),
          {:ok, public_key} <- User.get_public_key_for_ap_id(actor_id) do
       {:ok, public_key}
     else
@@ -37,7 +49,7 @@ defmodule Pleroma.Signature do
 
   def refetch_public_key(conn) do
     with %{"keyId" => kid} <- HTTPSignatures.signature_for_conn(conn),
-         actor_id <- key_id_to_actor_id(kid),
+         {:ok, actor_id} <- key_id_to_actor_id(kid),
          {:ok, _user} <- ActivityPub.make_user_from_ap_id(actor_id),
          {:ok, public_key} <- User.get_public_key_for_ap_id(actor_id) do
       {:ok, public_key}

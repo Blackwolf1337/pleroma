@@ -1,5 +1,5 @@
 # Pleroma: A lightweight social networking server
-# Copyright © 2019 Pleroma Authors <https://pleroma.social/>
+# Copyright © 2017-2021 Pleroma Authors <https://pleroma.social/>
 # SPDX-License-Identifier: AGPL-3.0-only
 
 defmodule Pleroma.Web.ActivityPub.MRF.AntiFollowbotPolicy do
@@ -7,7 +7,7 @@ defmodule Pleroma.Web.ActivityPub.MRF.AntiFollowbotPolicy do
 
   @moduledoc "Prevent followbots from following with a bit of heuristic"
 
-  @behaviour Pleroma.Web.ActivityPub.MRF
+  @behaviour Pleroma.Web.ActivityPub.MRF.Policy
 
   # XXX: this should become User.normalize_by_ap_id() or similar, really.
   defp normalize_by_ap_id(%{"id" => id}), do: User.get_cached_by_ap_id(id)
@@ -60,7 +60,7 @@ defmodule Pleroma.Web.ActivityPub.MRF.AntiFollowbotPolicy do
     if score < 0.8 do
       {:ok, message}
     else
-      {:reject, nil}
+      {:reject, "[AntiFollowbotPolicy] Scored #{actor_id} as #{score}"}
     end
   end
 

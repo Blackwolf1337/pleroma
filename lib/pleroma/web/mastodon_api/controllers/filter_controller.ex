@@ -1,15 +1,16 @@
 # Pleroma: A lightweight social networking server
-# Copyright © 2017-2019 Pleroma Authors <https://pleroma.social/>
+# Copyright © 2017-2021 Pleroma Authors <https://pleroma.social/>
 # SPDX-License-Identifier: AGPL-3.0-only
 
 defmodule Pleroma.Web.MastodonAPI.FilterController do
   use Pleroma.Web, :controller
 
   alias Pleroma.Filter
-  alias Pleroma.Plugs.OAuthScopesPlug
+  alias Pleroma.Web.Plugs.OAuthScopesPlug
 
   @oauth_read_actions [:show, :index]
 
+  plug(Pleroma.Web.ApiSpec.CastAndValidate)
   plug(OAuthScopesPlug, %{scopes: ["read:filters"]} when action in @oauth_read_actions)
 
   plug(
@@ -17,68 +18,69 @@ defmodule Pleroma.Web.MastodonAPI.FilterController do
     %{scopes: ["write:filters"]} when action not in @oauth_read_actions
   )
 
-  plug(Pleroma.Plugs.EnsurePublicOrAuthenticatedPlug)
+  defdelegate open_api_operation(action), to: Pleroma.Web.ApiSpec.FilterOperation
+
+  action_fallback(Pleroma.Web.MastodonAPI.FallbackController)
 
   @doc "GET /api/v1/filters"
   def index(%{assigns: %{user: user}} = conn, _) do
     filters = Filter.get_filters(user)
 
-    render(conn, "filters.json", filters: filters)
+    render(conn, "index.json", filters: filters)
   end
 
   @doc "POST /api/v1/filters"
-  def create(
-        %{assigns: %{user: user}} = conn,
-        %{"phrase" => phrase, "context" => context} = params
-      ) do
-    query = %Filter{
-      user_id: user.id,
-      phrase: phrase,
-      context: context,
-      hide: Map.get(params, "irreversible", false),
-      whole_word: Map.get(params, "boolean", true)
-      # expires_at
-    }
-
-    {:ok, response} = Filter.create(query)
-
-    render(conn, "filter.json", filter: response)
+  def create(%{assigns: %{user: user}, body_params: params} = conn, _) do
+    with {:ok, response} <-
+           params
+           |> Map.put(:user_id, user.id)
+           |> Map.put(:hide, params[:irreversible])
+           |> Map.delete(:irreversible)
+           |> Filter.create() do
+      render(conn, "show.json", filter: response)
+    end
   end
 
   @doc "GET /api/v1/filters/:id"
-  def show(%{assigns: %{user: user}} = conn, %{"id" => filter_id}) do
-    filter = Filter.get(filter_id, user)
-
-    render(conn, "filter.json", filter: filter)
+  def show(%{assigns: %{user: user}} = conn, %{id: filter_id}) do
+    with %Filter{} = filter <- Filter.get(filter_id, user) do
+      render(conn, "show.json", filter: filter)
+    else
+      nil -> {:error, :not_found}
+    end
   end
 
   @doc "PUT /api/v1/filters/:id"
   def update(
-        %{assigns: %{user: user}} = conn,
-        %{"phrase" => phrase, "context" => context, "id" => filter_id} = params
+        %{assigns: %{user: user}, body_params: params} = conn,
+        %{id: filter_id}
       ) do
-    query = %Filter{
-      user_id: user.id,
-      filter_id: filter_id,
-      phrase: phrase,
-      context: context,
-      hide: Map.get(params, "irreversible", nil),
-      whole_word: Map.get(params, "boolean", true)
-      # expires_at
-    }
+    params =
+      if is_boolean(params[:irreversible]) do
+        params
+        |> Map.put(:hide, params[:irreversible])
+        |> Map.delete(:irreversible)
+      else
+        params
+      end
 
-    {:ok, response} = Filter.update(query)
-    render(conn, "filter.json", filter: response)
+    with %Filter{} = filter <- Filter.get(filter_id, user),
+         {:ok, %Filter{} = filter} <- Filter.update(filter, params) do
+      render(conn, "show.json", filter: filter)
+    else
+      nil -> {:error, :not_found}
+      error -> error
+    end
   end
 
   @doc "DELETE /api/v1/filters/:id"
-  def delete(%{assigns: %{user: user}} = conn, %{"id" => filter_id}) do
-    query = %Filter{
-      user_id: user.id,
-      filter_id: filter_id
-    }
-
-    {:ok, _} = Filter.delete(query)
-    json(conn, %{})
+  def delete(%{assigns: %{user: user}} = conn, %{id: filter_id}) do
+    with %Filter{} = filter <- Filter.get(filter_id, user),
+         {:ok, _} <- Filter.delete(filter) do
+      json(conn, %{})
+    else
+      nil -> {:error, :not_found}
+      error -> error
+    end
   end
 end

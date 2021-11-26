@@ -1,5 +1,5 @@
 # Pleroma: A lightweight social networking server
-# Copyright © 2017-2019 Pleroma Authors <https://pleroma.social/>
+# Copyright © 2017-2021 Pleroma Authors <https://pleroma.social/>
 # SPDX-License-Identifier: AGPL-3.0-only
 
 defmodule Pleroma.ScheduledActivity do
@@ -40,7 +40,7 @@ defmodule Pleroma.ScheduledActivity do
          %{changes: %{params: %{"media_ids" => media_ids} = params}} = changeset
        )
        when is_list(media_ids) do
-    media_attachments = Utils.attachments_from_ids(%{"media_ids" => media_ids})
+    media_attachments = Utils.attachments_from_ids(%{media_ids: media_ids})
 
     params =
       params

@@ -1,20 +1,23 @@
 # Switching a from-source install to OTP releases
 
-## What are OTP releases?
-OTP releases are as close as you can get to binary releases with Erlang/Elixir. The release is self-contained, and provides everything needed to boot it, it is easily administered via the provided shell script to open up a remote console, start/stop/restart the release, start in the background, send remote commands, and more.
+{! backend/installation/otp_vs_from_source.include !}
+
+In this guide we cover how you can migrate from a from source installation to one using OTP releases.
 
 ## Pre-requisites
 You will be running commands as root. If you aren't root already, please elevate your priviledges by executing `sudo su`/`su`.
 
 The system needs to have `curl` and `unzip` installed for downloading and unpacking release builds.
 
-```sh tab="Alpine"
-apk add curl unzip
-```
+=== "Alpine"
+    ```sh
+    apk add curl unzip
+    ```
 
-```sh tab="Debian/Ubuntu"
-apt install curl unzip
-```
+=== "Debian/Ubuntu"
+    ```sh
+    apt install curl unzip
+    ```
 
 ## Moving content out of the application directory
 When using OTP releases the application directory changes with every version so it would be a bother to keep content there (and also dangerous unless `--no-rm` option is used when updating). Fortunately almost all paths in Pleroma are configurable, so it is possible to move them out of there.
@@ -110,27 +113,29 @@ OTP releases have different service files than from-source installs so they need
 
 **Warning:** The service files assume pleroma user's home directory is `/opt/pleroma`, please make sure all paths fit your installation.
 
-```sh tab="Alpine"
-# Copy the service into a proper directory
-cp -f ~pleroma/installation/init.d/pleroma /etc/init.d/pleroma
+=== "Alpine"
+    ```sh
+    # Copy the service into a proper directory
+    cp -f ~pleroma/installation/init.d/pleroma /etc/init.d/pleroma
 
-# Start pleroma
-rc-service pleroma start
-```
+    # Start pleroma
+    rc-service pleroma start
+    ```
 
-```sh tab="Debian/Ubuntu"
-# Copy the service into a proper directory
-cp ~pleroma/installation/pleroma.service /etc/systemd/system/pleroma.service
+=== "Debian/Ubuntu"
+    ```sh
+    # Copy the service into a proper directory
+    cp ~pleroma/installation/pleroma.service /etc/systemd/system/pleroma.service
 
-# Reload service files
-systemctl daemon-reload
+    # Reload service files
+    systemctl daemon-reload
 
-# Reenable pleroma to start on boot
-systemctl reenable pleroma
+    # Reenable pleroma to start on boot
+    systemctl reenable pleroma
 
-# Start pleroma
-systemctl start pleroma
-```
+    # Start pleroma
+    systemctl start pleroma
+    ```
 
 ## Running mix tasks
 Refer to [Running mix tasks](otp_en.md#running-mix-tasks) section from OTP release installation guide.

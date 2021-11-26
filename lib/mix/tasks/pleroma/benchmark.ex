@@ -1,5 +1,5 @@
 # Pleroma: A lightweight social networking server
-# Copyright © 2017-2019 Pleroma Authors <https://pleroma.social/>
+# Copyright © 2017-2021 Pleroma Authors <https://pleroma.social/>
 # SPDX-License-Identifier: AGPL-3.0-only
 
 defmodule Mix.Tasks.Pleroma.Benchmark do
@@ -72,6 +72,42 @@ defmodule Mix.Tasks.Pleroma.Benchmark do
         end
       },
       inputs: inputs
+    )
+  end
+
+  def run(["adapters"]) do
+    start_pleroma()
+
+    :ok =
+      Pleroma.Gun.Conn.open(
+        "https://httpbin.org/stream-bytes/1500",
+        :gun_connections
+      )
+
+    Process.sleep(1_500)
+
+    Benchee.run(
+      %{
+        "Without conn and without pool" => fn ->
+          {:ok, %Tesla.Env{}} =
+            Pleroma.HTTP.get("https://httpbin.org/stream-bytes/1500", [],
+              pool: :no_pool,
+              receive_conn: false
+            )
+        end,
+        "Without conn and with pool" => fn ->
+          {:ok, %Tesla.Env{}} =
+            Pleroma.HTTP.get("https://httpbin.org/stream-bytes/1500", [], receive_conn: false)
+        end,
+        "With reused conn and without pool" => fn ->
+          {:ok, %Tesla.Env{}} =
+            Pleroma.HTTP.get("https://httpbin.org/stream-bytes/1500", [], pool: :no_pool)
+        end,
+        "With reused conn and with pool" => fn ->
+          {:ok, %Tesla.Env{}} = Pleroma.HTTP.get("https://httpbin.org/stream-bytes/1500")
+        end
+      },
+      parallel: 10
     )
   end
 end
