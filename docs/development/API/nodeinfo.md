@@ -1,5 +1,7 @@
 # Nodeinfo
 
+See also [https://nodeinfo.diaspora.software/ the Nodeinfo standard].
+
 ## `/.well-known/nodeinfo`
 ### The well-known path
 * Method: `GET`
