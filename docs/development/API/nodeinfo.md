@@ -1,6 +1,6 @@
 # Nodeinfo
 
-See also [https://nodeinfo.diaspora.software/ the Nodeinfo standard].
+See also [the Nodeinfo standard](https://nodeinfo.diaspora.software/).
 
 ## `/.well-known/nodeinfo`
 ### The well-known path
