@@ -9,4 +9,3 @@ defmodule Pleroma.Repo.Migrations.ForcePinnedObjectsToExist do
     end
   end
 end
-
