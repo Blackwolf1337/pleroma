@@ -24,8 +24,7 @@ defmodule Pleroma.Web.MastodonAPI.DirectoryController do
       limit = Map.get(params, :limit, 20) |> min(80)
 
       users =
-        %{is_discoverable: true, invisible: false, limit: limit}
-        |> User.Query.build()
+        User.Query.build(%{is_discoverable: true, invisible: false, limit: limit})
         |> order_by_creation_date(params)
         |> exclude_remote(params)
         |> exclude_user(user)
@@ -36,7 +35,6 @@ defmodule Pleroma.Web.MastodonAPI.DirectoryController do
       |> put_view(AccountView)
       |> render("index.json", for: user, users: users, as: :user)
     else
-      {:visible, false} -> {:error, :not_found}
       _ -> json(conn, [])
     end
   end
