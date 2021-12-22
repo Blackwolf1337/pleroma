@@ -292,6 +292,7 @@ defmodule Pleroma.Web.ActivityPub.ActivityPub do
          _ <- increase_replies_count_if_reply(create_data),
          {:quick_insert, false, activity} <- {:quick_insert, quick_insert?, activity},
          {:ok, _actor} <- increase_note_count_if_public(actor, activity),
+         {:ok, _actor} <- update_last_status_at_if_public(actor, activity),
          _ <- notify_and_stream(activity),
          :ok <- maybe_schedule_poll_notifications(activity),
          :ok <- maybe_federate(activity) do
