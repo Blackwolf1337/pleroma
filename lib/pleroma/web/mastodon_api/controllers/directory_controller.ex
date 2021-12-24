@@ -45,8 +45,7 @@ defmodule Pleroma.Web.MastodonAPI.DirectoryController do
 
   defp order_by_creation_date(query, _params) do
     query
-    |> where([u], not is_nil(u.last_status_at))
-    |> order_by([u], desc: u.last_status_at)
+    |> order_by([u], desc_nulls_last: u.last_status_at)
   end
 
   defp exclude_remote(query, %{local: true}) do
