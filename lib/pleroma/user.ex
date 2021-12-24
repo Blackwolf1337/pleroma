@@ -2501,7 +2501,7 @@ defmodule Pleroma.User do
     |> Repo.aggregate(:count)
   end
 
-  def update_last_status_at(%__MODULE__{local: true} = user) do
+  def update_last_status_at(user) do
     user
     |> cast(%{last_status_at: NaiveDateTime.utc_now()}, [:last_status_at])
     |> update_and_set_cache()
