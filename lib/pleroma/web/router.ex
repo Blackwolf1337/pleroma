@@ -544,8 +544,6 @@ defmodule Pleroma.Web.Router do
     get("/timelines/home", TimelineController, :home)
     get("/timelines/direct", TimelineController, :direct)
     get("/timelines/list/:list_id", TimelineController, :list)
-
-    get("/directory", DirectoryController, :index)
   end
 
   scope "/api/v1", Pleroma.Web.MastodonAPI do
@@ -586,6 +584,8 @@ defmodule Pleroma.Web.Router do
     get("/timelines/tag/:tag", TimelineController, :hashtag)
 
     get("/polls/:id", PollController, :show)
+
+    get("/directory", DirectoryController, :index)
   end
 
   scope "/api/v2", Pleroma.Web.MastodonAPI do

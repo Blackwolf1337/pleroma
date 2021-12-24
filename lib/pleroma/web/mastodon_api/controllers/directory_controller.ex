@@ -14,7 +14,8 @@ defmodule Pleroma.Web.MastodonAPI.DirectoryController do
   require Logger
 
   plug(Pleroma.Web.ApiSpec.CastAndValidate)
-  plug(Pleroma.Web.Plugs.OAuthScopesPlug, %{scopes: ["read"]} when action in [:index])
+
+  plug(:skip_auth when action == "index")
 
   defdelegate open_api_operation(action), to: Pleroma.Web.ApiSpec.DirectoryOperation
 
@@ -60,6 +61,10 @@ defmodule Pleroma.Web.MastodonAPI.DirectoryController do
     where(query, [u], u.id != ^user_id)
   end
 
+  defp exclude_user(query, _user) do
+    query
+  end
+
   defp exclude_relationships(query, %User{id: user_id}, relationship_types) do
     query
     |> join(:left, [u], r in UserRelationship,
@@ -69,5 +74,9 @@ defmodule Pleroma.Web.MastodonAPI.DirectoryController do
           r.relationship_type in ^relationship_types
     )
     |> where([user_relationships: r], is_nil(r.target_id))
+  end
+
+  defp exclude_relationships(query, _user, _relationship_types) do
+    query
   end
 end
