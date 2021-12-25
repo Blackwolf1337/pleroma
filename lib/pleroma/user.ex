@@ -2502,8 +2502,14 @@ defmodule Pleroma.User do
   end
 
   def update_last_status_at(user) do
-    user
-    |> cast(%{last_status_at: NaiveDateTime.utc_now()}, [:last_status_at])
-    |> update_and_set_cache()
+    User
+    |> where(id: ^user.id)
+    |> update([u], set: [last_status_at: fragment("NOW()")])
+    |> select([u], u)
+    |> Repo.update_all([])
+    |> case do
+      {1, [user]} -> set_cache(user)
+      _ -> {:error, user}
+    end
   end
 end
