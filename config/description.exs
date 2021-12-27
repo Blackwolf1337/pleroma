@@ -941,6 +941,11 @@ config :pleroma, :config_description, [
         key: :profile_directory,
         type: :boolean,
         description: "Enable profile directory."
+      },
+      %{
+        key: :notice_compatibility_routes,
+        type: :boolean,
+        description: "Enable or disable notice compatibility routes for other frontends (e.g. Soapbox FE)"
       }
     ]
   },
