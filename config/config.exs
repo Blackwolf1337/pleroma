@@ -255,7 +255,8 @@ config :pleroma, :instance,
   ],
   show_reactions: true,
   password_reset_token_validity: 60 * 60 * 24,
-  profile_directory: true
+  profile_directory: true,
+  notice_compatibility_routes: false
 
 config :pleroma, :welcome,
   direct_message: [
