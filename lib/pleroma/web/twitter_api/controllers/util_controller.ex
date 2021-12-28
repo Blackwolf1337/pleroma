@@ -16,8 +16,8 @@ defmodule Pleroma.Web.TwitterAPI.UtilController do
   alias Pleroma.Web.Plugs.OAuthScopesPlug
   alias Pleroma.Web.WebFinger
 
-  plug(Pleroma.Web.ApiSpec.CastAndValidate when action != :remote_subscribe)
-  plug(Pleroma.Web.Plugs.FederatingPlug when action == :remote_subscribe)
+  plug(Pleroma.Web.ApiSpec.CastAndValidate when action != :remote_subscribe and action != :show_subscribe_form)
+  plug(Pleroma.Web.Plugs.FederatingPlug when action == :remote_subscribe when action == :show_subscribe_form)
 
   plug(
     OAuthScopesPlug,
@@ -33,7 +33,7 @@ defmodule Pleroma.Web.TwitterAPI.UtilController do
 
   defdelegate open_api_operation(action), to: Pleroma.Web.ApiSpec.TwitterUtilOperation
 
-  def remote_subscribe(conn, %{"nickname" => nick, "profile" => _}) do
+  def show_subscribe_form(conn, %{"nickname" => nick}) do
     with %User{} = user <- User.get_cached_by_nickname(nick),
          avatar = User.avatar_url(user) do
       conn
@@ -48,7 +48,7 @@ defmodule Pleroma.Web.TwitterAPI.UtilController do
     end
   end
 
-  def remote_subscribe(conn, %{"status_id" => id, "profile" => _}) do
+  def show_subscribe_form(conn, %{"status_id" => id}) do
     with %Activity{} = activity <- Activity.get_by_id(id),
          %User{} = user <- User.get_cached_by_ap_id(activity.actor),
          avatar = User.avatar_url(user) do
@@ -67,6 +67,14 @@ defmodule Pleroma.Web.TwitterAPI.UtilController do
           error: "Could not find status"
         })
     end
+  end
+
+  def remote_subscribe(conn, %{"nickname" => nick, "profile" => _}) do
+    show_subscribe_form(conn, %{"nickname" => nick})
+  end
+
+  def remote_subscribe(conn, %{"status_id" => id, "profile" => _}) do
+    show_subscribe_form(conn, %{"status_id" => id})
   end
 
   def remote_subscribe(conn, %{"user" => %{"nickname" => nick, "profile" => profile}}) do
