@@ -30,6 +30,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Configuration: Add `birthday_required` and `birthday_min_age` settings to provide a way to require users to enter their birth date.
 - PleromaAPI: Add `GET /api/v1/pleroma/birthdays` API endpoint
 - Make backend-rendered pages translatable. This includes emails. Pages returned as a HTTP response are translated using the language specified in the `userLanguage` cookie, or the `Accept-Language` header. Emails are translated using the `language` field when registering. This language can be changed by `PATCH /api/v1/accounts/update_credentials` with the `language` field.
+- Enable remote users to interact with posts
 
 ### Fixed
 - Subscription(Bell) Notifications: Don't create from Pipeline Ingested replies
