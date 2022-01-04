@@ -59,12 +59,10 @@ defmodule Pleroma.Application do
     Pleroma.Docs.JSON.compile()
     limiters_setup()
 
-    Logger.info("Starting Finch")
-    Finch.start_link(name: MyFinch)
-
     # Define workers and child supervisors to be supervised
     children =
       [
+        {Finch, name: Pleroma.HTTP.FinchPool},
         Pleroma.Repo,
         Config.TransferTask,
         Pleroma.Emoji,

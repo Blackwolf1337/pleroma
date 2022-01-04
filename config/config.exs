@@ -175,7 +175,7 @@ config :mime, :types, %{
   "application/ld+json" => ["activity+json"]
 }
 
-config :tesla, :adapter, {Tesla.Adapter.Finch, name: MyFinch}
+config :tesla, :adapter, {Tesla.Adapter.Finch, name: Pleroma.HTTP.FinchPool}
 
 # Configures http settings, upstream proxy etc.
 config :pleroma, :http,
