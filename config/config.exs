@@ -181,7 +181,10 @@ config :tesla, :adapter, {Tesla.Adapter.Finch, name: Pleroma.HTTP.FinchPool}
 config :pleroma, :http,
   proxy_url: nil,
   user_agent: :default,
-  adapter: []
+  adapter: [],
+  # Ideally this option would be named `adapter`, but somebody decided
+  # to name adapter options that, and renaming it would be too much work.
+  client: :finch
 
 config :pleroma, :instance,
   name: "Pleroma",

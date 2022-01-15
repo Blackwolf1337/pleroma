@@ -59,15 +59,17 @@ defmodule Pleroma.Application do
     Pleroma.Docs.JSON.compile()
     limiters_setup()
 
+    http_children = Pleroma.HTTP.setup_and_return_children!()
+
     # Define workers and child supervisors to be supervised
     children =
       [
-        {Finch, name: Pleroma.HTTP.FinchPool},
+        # {Finch, name: Pleroma.HTTP.FinchPool},
         Pleroma.Repo,
         Config.TransferTask,
         Pleroma.Emoji,
         Pleroma.Web.Plugs.RateLimiter.Supervisor
-      ] ++
+      ] ++ http_children ++
         cachex_children() ++
         [
           Pleroma.Stats,

@@ -7,6 +7,7 @@ defmodule Pleroma.HTTP do
     Wrapper for `Tesla.request/2`.
   """
 
+  alias Pleroma.Config
   alias Pleroma.HTTP.AdapterHelper
   alias Pleroma.HTTP.Request
   alias Pleroma.HTTP.RequestBuilder, as: Builder
@@ -17,6 +18,54 @@ defmodule Pleroma.HTTP do
 
   @type t :: __MODULE__
   @type method() :: :get | :post | :put | :delete | :head
+
+  defp get_tesla_adapter_and_children(_, {:error, reason}), do: raise "Proxy configuration parse error: #{reason}"
+
+  defp get_tesla_adapter_and_children(:finch, {:ok, _proxy_type, _, _}), do: raise "Finch adapter does not support SOCKS proxies"
+
+  defp get_tesla_adapter_and_children(:finch, proxy) do
+    conn_opts =
+      case proxy do
+        {:ok, host, port} -> [proxy: {:http, host, port, []}]
+        _ -> []
+      end
+
+    children = [{Finch, name: Pleroma.HTTP.FinchPool, conn_opts: conn_opts}]
+    tesla_adapter = {Tesla.Adapter.Finch, name: Pleroma.HTTP.FinchPool}
+
+    {tesla_adapter, children}
+  end
+
+  defp get_tesla_adapter_and_children(:hackney, _proxy) do
+    tesla_adapter = Tesla.Adapter.Hackney
+    children = []
+
+    {tesla_adapter, children}
+  end
+
+  def setup_and_return_children! do
+    parsed_proxy = AdapterHelper.parse_proxy(Config.get([:http, :proxy_url]))
+
+    adapter =
+      case Config.get([:http, :client]) do
+        adapter when adapter in [:finch, :hackney] ->
+          adapter
+
+        nil ->
+          case parsed_proxy do
+            {:ok, {proxy_type, _, _}} when proxy_type in [:socks4, :socks5] -> :hackney
+            _ -> :finch
+          end
+
+        unrecognized_adapter ->
+          raise "No such adapter: #{unrecognized_adapter}"
+      end
+
+    {tesla_adapter, children} = get_tesla_adapter_and_children(adapter, parsed_proxy)
+
+    Application.put_env(:tesla, :adapter, tesla_adapter)
+    children
+  end
 
   @doc """
   Performs GET request.
