@@ -175,7 +175,7 @@ analysis:
 
 cycles:
   stage: test
-  image: elixir:1.11
+  image: elixir:1.13
   only:
     changes:
       - "**/*.ex"
