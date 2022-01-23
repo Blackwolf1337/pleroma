@@ -78,6 +78,20 @@ defmodule Pleroma.Web.MastodonAPI.StatusView do
   # False if the user is logged out
   defp reblogged?(_activity, _user), do: false
 
+  defp reblogged_count(activity) do
+    with %Object{data: %{"announcements" => announcements, "announcement_count" => announcement_count}}
+      when is_list(announcements) <- Object.normalize(activity, fetch: false) do
+        if length(announcements) == 0 do
+          0
+        else
+          relays = length(Enum.filter(announcements, fn(x) -> Regex.match?(~r/\/relay$/, x) end))
+          announcement_count - relays
+        end
+    else
+      _ -> 0
+    end
+  end
+
   def render("index.json", opts) do
     reading_user = opts[:for]
 
@@ -208,7 +222,7 @@ defmodule Pleroma.Web.MastodonAPI.StatusView do
     user_follower_address = user.follower_address
 
     like_count = object.data["like_count"] || 0
-    announcement_count = object.data["announcement_count"] || 0
+    announcement_count = reblogged_count(object.data)
 
     hashtags = Object.hashtags(object)
     sensitive = object.data["sensitive"] || Enum.member?(hashtags, "nsfw")
