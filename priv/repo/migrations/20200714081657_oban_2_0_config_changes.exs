@@ -12,7 +12,6 @@ defmodule Elixir.Pleroma.Repo.Migrations.Oban20ConfigChanges do
 
     if config_entry do
       %{value: value} = config_entry
-
       value =
         case Keyword.fetch(value, :verbose) do
           {:ok, log} -> Keyword.put_new(value, :log, log)
