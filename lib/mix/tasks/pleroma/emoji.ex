@@ -120,7 +120,7 @@ defmodule Mix.Tasks.Pleroma.Emoji do
 
         pack_json = %{
           pack: %{
-            "display-name" => pack["display-name"],
+            "display-name" => pack["display_name"],
             "license" => pack["license"],
             "homepage" => pack["homepage"],
             "description" => pack["description"],
