@@ -37,11 +37,11 @@ defmodule Pleroma.Web.PleromaAPI.EmojiPackControllerTest do
   test "GET /api/pleroma/emoji/packs", %{conn: conn} do
     resp = conn |> get("/api/pleroma/emoji/packs") |> json_response_and_validate_schema(200)
 
-    assert resp["count"] == 4
+    assert resp["count"] == 6
 
     assert resp["packs"]
            |> Map.keys()
-           |> length() == 4
+           |> length() == 6
 
     shared = resp["packs"]["test_pack"]
     assert shared["files"] == %{"blank" => "blank.png", "blank2" => "blank2.png"}
@@ -53,12 +53,15 @@ defmodule Pleroma.Web.PleromaAPI.EmojiPackControllerTest do
     assert non_shared["pack"]["share-files"] == false
     assert non_shared["pack"]["can-download"] == false
 
+    no_display_name = resp["packs"]["test_pack_no_display_name"]
+    assert no_display_name["pack"]["display-name"] == nil
+
     resp =
       conn
       |> get("/api/pleroma/emoji/packs?page_size=1")
       |> json_response_and_validate_schema(200)
 
-    assert resp["count"] == 4
+    assert resp["count"] == 6
 
     packs = Map.keys(resp["packs"])
 
@@ -71,7 +74,7 @@ defmodule Pleroma.Web.PleromaAPI.EmojiPackControllerTest do
       |> get("/api/pleroma/emoji/packs?page_size=1&page=2")
       |> json_response_and_validate_schema(200)
 
-    assert resp["count"] == 4
+    assert resp["count"] == 6
     packs = Map.keys(resp["packs"])
     assert length(packs) == 1
     [pack2] = packs
@@ -81,7 +84,7 @@ defmodule Pleroma.Web.PleromaAPI.EmojiPackControllerTest do
       |> get("/api/pleroma/emoji/packs?page_size=1&page=3")
       |> json_response_and_validate_schema(200)
 
-    assert resp["count"] == 4
+    assert resp["count"] == 6
     packs = Map.keys(resp["packs"])
     assert length(packs) == 1
     [pack3] = packs
@@ -91,7 +94,7 @@ defmodule Pleroma.Web.PleromaAPI.EmojiPackControllerTest do
       |> get("/api/pleroma/emoji/packs?page_size=1&page=4")
       |> json_response_and_validate_schema(200)
 
-    assert resp["count"] == 4
+    assert resp["count"] == 6
     packs = Map.keys(resp["packs"])
     assert length(packs) == 1
     [pack4] = packs
@@ -358,6 +361,7 @@ defmodule Pleroma.Web.PleromaAPI.EmojiPackControllerTest do
       {:ok,
        pack_file: pack_file,
        new_data: %{
+         "display-name" => "Test display name changed",
          "license" => "Test license changed",
          "homepage" => "https://pleroma.social",
          "description" => "Test description",
@@ -587,6 +591,7 @@ defmodule Pleroma.Web.PleromaAPI.EmojiPackControllerTest do
                "files_count" => 2,
                "pack" => %{
                  "can-download" => true,
+                 "display-name" => "Test display name",
                  "description" => "Test description",
                  "download-sha256" => _,
                  "homepage" => "https://pleroma.social",
@@ -627,6 +632,7 @@ defmodule Pleroma.Web.PleromaAPI.EmojiPackControllerTest do
                "files_count" => 1,
                "pack" => %{
                  "can-download" => true,
+                 "display-name" => "Test display name",
                  "description" => "Test description",
                  "download-sha256" => _,
                  "homepage" => "https://pleroma.social",
@@ -645,6 +651,24 @@ defmodule Pleroma.Web.PleromaAPI.EmojiPackControllerTest do
              |> json_response_and_validate_schema(:not_found) == %{
                "error" => "Pack non_existing does not exist"
              }
+    end
+
+    test "for pack with no display name", %{conn: conn} do
+      assert %{
+               "files" => _files,
+               "files_count" => 1,
+               "pack" => %{
+                 "can-download" => true,
+                 "description" => "Test description",
+                 "download-sha256" => _,
+                 "homepage" => "https://pleroma.social",
+                 "license" => "Test license",
+                 "share-files" => true
+               }
+             } =
+               conn
+               |> get("/api/pleroma/emoji/pack?name=test_pack_no_display_name")
+               |> json_response_and_validate_schema(200)
     end
 
     test "error name", %{conn: conn} do

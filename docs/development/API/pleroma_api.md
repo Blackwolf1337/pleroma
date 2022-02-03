@@ -423,6 +423,7 @@ The status posting endpoint takes an additional parameter, `in_reply_to_conversa
 * Params:
   * `name`: pack name
   * `metadata`: metadata to replace the old one
+    * `display-name`: Pack name that returns in place of `category` for each emoji in its pack whenever called from `/api/v1/custom_emojis`
     * `license`: Pack license
     * `homepage`: Pack home page url
     * `description`: Pack description

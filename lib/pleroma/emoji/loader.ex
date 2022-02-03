@@ -106,10 +106,12 @@ defmodule Pleroma.Emoji.Loader do
       Logger.info("Loading emoji pack from JSON: #{pack_file}")
       contents = Jason.decode!(File.read!(pack_file))
 
+      display_name = contents["pack"]["display-name"] || "pack:#{pack_name}"
+
       contents["files"]
       |> Enum.map(fn {name, rel_file} ->
         filename = Path.join("/emoji/#{pack_name}", rel_file)
-        {name, filename, ["pack:#{pack_name}"]}
+        {name, filename, [display_name]}
       end)
     else
       # Load from emoji.txt / all files
