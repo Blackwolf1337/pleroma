@@ -34,7 +34,8 @@ defmodule Pleroma.Web.MastodonAPI.CustomEmojiControllerTest do
 
     assert emoji = Enum.at(Enum.filter(resp, fn x -> x["shortcode"] == "blank6" end), 0)
     assert emoji["category"] == test_pack["pack"]["display-name"]
-    assert Enum.at(emoji["tags"], 0) == test_pack["pack"]["display-name"]
+    assert Enum.member?(emoji["tags"], "display-name:#{test_pack["pack"]["display-name"]}")
+    assert Enum.member?(emoji["tags"], "pack:test_pack_with_display_name")
   end
 
   test "without display name", %{conn: conn} do
