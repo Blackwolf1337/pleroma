@@ -636,7 +636,7 @@ defmodule Pleroma.Emoji.Pack do
   end
 
   defp display_name_blank?(data) do
-    data[:"display-name"] == "" or data[:"display-name"] == nil
+    String.trim(data[:"display-name"]) == "" or data[:"display-name"] == nil
   end
 
   defp remove_display_name_and_save_metadata(pack, data) do
