@@ -46,6 +46,8 @@ defmodule Pleroma.User.Query do
             unconfirmed: boolean(),
             is_admin: boolean(),
             is_moderator: boolean(),
+            is_suggested: boolean(),
+            is_discoverable: boolean(),
             super_users: boolean(),
             invisible: boolean(),
             internal: boolean(),
@@ -57,7 +59,9 @@ defmodule Pleroma.User.Query do
             order_by: term(),
             select: term(),
             limit: pos_integer(),
-            actor_types: [String.t()]
+            actor_types: [String.t()],
+            birthday_day: pos_integer(),
+            birthday_month: pos_integer()
           }
           | map()
 
@@ -167,6 +171,14 @@ defmodule Pleroma.User.Query do
     where(query, [u], u.is_confirmed == false)
   end
 
+  defp compose_query({:is_suggested, bool}, query) do
+    where(query, [u], u.is_suggested == ^bool)
+  end
+
+  defp compose_query({:is_discoverable, bool}, query) do
+    where(query, [u], u.is_discoverable == ^bool)
+  end
+
   defp compose_query({:followers, %User{id: id}}, query) do
     query
     |> where([u], u.id != ^id)
@@ -218,6 +230,20 @@ defmodule Pleroma.User.Query do
     query
     |> where([u], not is_nil(u.nickname))
     |> where([u], not like(u.nickname, "internal.%"))
+  end
+
+  defp compose_query({:birthday_day, day}, query) do
+    query
+    |> where([u], u.show_birthday == true)
+    |> where([u], not is_nil(u.birthday))
+    |> where([u], fragment("date_part('day', ?)", u.birthday) == ^day)
+  end
+
+  defp compose_query({:birthday_month, month}, query) do
+    query
+    |> where([u], u.show_birthday == true)
+    |> where([u], not is_nil(u.birthday))
+    |> where([u], fragment("date_part('month', ?)", u.birthday) == ^month)
   end
 
   defp compose_query(_unsupported_param, query), do: query

@@ -107,6 +107,17 @@ defmodule Pleroma.Web.ActivityPub.TransmogrifierTest do
       assert activity.data["target"] == new_user.ap_id
       assert activity.data["type"] == "Move"
     end
+
+    test "a reply with mismatched context is rejected" do
+      insert(:user, ap_id: "https://macgirvin.com/channel/mike")
+
+      note_activity =
+        "test/fixtures/roadhouse-create-activity.json"
+        |> File.read!()
+        |> Jason.decode!()
+
+      assert {:error, _} = Transmogrifier.handle_incoming(note_activity)
+    end
   end
 
   describe "prepare outgoing" do
@@ -522,6 +533,46 @@ defmodule Pleroma.Web.ActivityPub.TransmogrifierTest do
                Transmogrifier.get_obj_helper(
                  "https://mstdn.io/users/mayuutann/statuses/99568293732299394"
                )
+    end
+  end
+
+  describe "fix_attachments/1" do
+    test "puts dimensions into attachment url field" do
+      object = %{
+        "attachment" => [
+          %{
+            "type" => "Document",
+            "name" => "Hello world",
+            "url" => "https://media.example.tld/1.jpg",
+            "width" => 880,
+            "height" => 960,
+            "mediaType" => "image/jpeg",
+            "blurhash" => "eTKL26+HDjcEIBVl;ds+K6t301W.t7nit7y1E,R:v}ai4nXSt7V@of"
+          }
+        ]
+      }
+
+      expected = %{
+        "attachment" => [
+          %{
+            "type" => "Document",
+            "name" => "Hello world",
+            "url" => [
+              %{
+                "type" => "Link",
+                "mediaType" => "image/jpeg",
+                "href" => "https://media.example.tld/1.jpg",
+                "width" => 880,
+                "height" => 960
+              }
+            ],
+            "mediaType" => "image/jpeg",
+            "blurhash" => "eTKL26+HDjcEIBVl;ds+K6t301W.t7nit7y1E,R:v}ai4nXSt7V@of"
+          }
+        ]
+      }
+
+      assert Transmogrifier.fix_attachments(object) == expected
     end
   end
 end

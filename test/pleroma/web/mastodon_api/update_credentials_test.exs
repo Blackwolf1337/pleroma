@@ -35,8 +35,8 @@ defmodule Pleroma.Web.MastodonAPI.UpdateCredentialsTest do
         |> assign(:user, user)
         |> patch("/api/v1/accounts/update_credentials", %{
           "pleroma_settings_store" => %{
-            masto_fe: %{
-              theme: "bla"
+            soapbox_fe: %{
+              themeMode: "bla"
             }
           }
         })
@@ -46,7 +46,7 @@ defmodule Pleroma.Web.MastodonAPI.UpdateCredentialsTest do
       assert user_data["pleroma"]["settings_store"] ==
                %{
                  "pleroma_fe" => %{"theme" => "bla"},
-                 "masto_fe" => %{"theme" => "bla"}
+                 "soapbox_fe" => %{"themeMode" => "bla"}
                }
 
       user = Repo.get(User, user_data["id"])
@@ -60,8 +60,8 @@ defmodule Pleroma.Web.MastodonAPI.UpdateCredentialsTest do
           |> assign(:user, user)
           |> patch("/api/v1/accounts/update_credentials", %{
             "pleroma_settings_store" => %{
-              masto_fe: %{
-                theme: "blub"
+              soapbox_fe: %{
+                themeMode: "blub"
               }
             }
           })
@@ -71,7 +71,7 @@ defmodule Pleroma.Web.MastodonAPI.UpdateCredentialsTest do
         assert user_data["pleroma"]["settings_store"] ==
                  %{
                    "pleroma_fe" => %{"theme" => "bla"},
-                   "masto_fe" => %{"theme" => "blub"}
+                   "soapbox_fe" => %{"themeMode" => "blub"}
                  }
 
         assert_called(Pleroma.Web.Federator.publish(:_))
@@ -88,9 +88,7 @@ defmodule Pleroma.Web.MastodonAPI.UpdateCredentialsTest do
       assert user_data = json_response_and_validate_schema(conn, 200)
 
       assert user_data["note"] ==
-               ~s(I drink <a class="hashtag" data-tag="cofe" href="http://localhost:4001/tag/cofe">#cofe</a> with <span class="h-card"><a class="u-url mention" data-user="#{
-                 user2.id
-               }" href="#{user2.ap_id}" rel="ugc">@<span>#{user2.nickname}</span></a></span><br/><br/>suya..)
+               ~s(I drink <a class="hashtag" data-tag="cofe" href="http://localhost:4001/tag/cofe">#cofe</a> with <span class="h-card"><a class="u-url mention" data-user="#{user2.id}" href="#{user2.ap_id}" rel="ugc">@<span>#{user2.nickname}</span></a></span><br/><br/>suya..)
 
       assert user_data["source"]["note"] == raw_bio
 
@@ -370,6 +368,26 @@ defmodule Pleroma.Web.MastodonAPI.UpdateCredentialsTest do
                },
                %{"name" => "link.io", "value" => "cofe.io"}
              ]
+    end
+
+    test "updates birth date", %{conn: conn} do
+      res =
+        patch(conn, "/api/v1/accounts/update_credentials", %{
+          "birthday" => "2001-02-12"
+        })
+
+      assert user_data = json_response_and_validate_schema(res, 200)
+      assert user_data["pleroma"]["birthday"] == "2001-02-12"
+    end
+
+    test "updates the user's show_birthday status", %{conn: conn} do
+      res =
+        patch(conn, "/api/v1/accounts/update_credentials", %{
+          "show_birthday" => true
+        })
+
+      assert user_data = json_response_and_validate_schema(res, 200)
+      assert user_data["source"]["pleroma"]["show_birthday"] == true
     end
 
     test "emojis in fields labels", %{conn: conn} do

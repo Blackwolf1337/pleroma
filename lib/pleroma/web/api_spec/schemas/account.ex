@@ -47,12 +47,14 @@ defmodule Pleroma.Web.ApiSpec.Schemas.Account do
             description: "whether the user allows automatically follow moved following accounts"
           },
           background_image: %Schema{type: :string, nullable: true, format: :uri},
+          birthday: %Schema{type: :string, nullable: true, format: :date},
           chat_token: %Schema{type: :string},
           is_confirmed: %Schema{
             type: :boolean,
             description:
               "whether the user account is waiting on email confirmation to be activated"
           },
+          show_birthday: %Schema{type: :boolean, nullable: true},
           hide_favorites: %Schema{type: :boolean},
           hide_followers_count: %Schema{
             type: :boolean,
@@ -194,13 +196,16 @@ defmodule Pleroma.Web.ApiSpec.Schemas.Account do
           "id" => "9tKi3esbG7OQgZ2920",
           "muting" => false,
           "muting_notifications" => false,
+          "note" => "",
           "requested" => false,
           "showing_reblogs" => true,
-          "subscribing" => false
+          "subscribing" => false,
+          "notifying" => false
         },
         "settings_store" => %{
           "pleroma-fe" => %{}
-        }
+        },
+        "birthday" => "2001-02-12"
       },
       "source" => %{
         "fields" => [],

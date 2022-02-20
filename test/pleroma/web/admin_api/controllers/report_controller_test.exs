@@ -204,9 +204,7 @@ defmodule Pleroma.Web.AdminAPI.ReportControllerTest do
                "@#{admin.nickname} updated report ##{id} (on user @#{activity.user_actor.nickname}) with 'resolved' state"
 
       assert ModerationLog.get_log_entry_message(second_log_entry) ==
-               "@#{admin.nickname} updated report ##{second_report_id} (on user @#{
-                 second_activity.user_actor.nickname
-               }) with 'closed' state"
+               "@#{admin.nickname} updated report ##{second_report_id} (on user @#{second_activity.user_actor.nickname}) with 'closed' state"
     end
   end
 
@@ -357,6 +355,7 @@ defmodule Pleroma.Web.AdminAPI.ReportControllerTest do
              } = note
     end
 
+    @tag :erratic
     test "it returns reports with notes", %{conn: conn, admin: admin} do
       conn = get(conn, "/api/pleroma/admin/reports")
 

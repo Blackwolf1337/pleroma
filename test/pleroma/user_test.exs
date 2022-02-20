@@ -480,7 +480,7 @@ defmodule Pleroma.UserTest do
             )
 
     test "it sends a welcome chat message when Simple policy applied to local instance" do
-      clear_config([:mrf_simple, :media_nsfw], ["localhost"])
+      clear_config([:mrf_simple, :media_nsfw], [{"localhost", ""}])
 
       welcome_user = insert(:user)
       clear_config([:welcome, :chat_message, :enabled], true)
@@ -748,6 +748,54 @@ defmodule Pleroma.UserTest do
           :registration_reason,
           "Quia et nesciunt dolores numquam ipsam nisi sapiente soluta. Ullam repudiandae nisi quam porro officiis officiis ad. Consequatur animi velit ex quia. Odit voluptatem perferendis quia ut nisi. Dignissimos sit soluta atque aliquid dolorem ut dolorum ut. Labore voluptates iste iusto amet voluptatum earum. Ad fugit illum nam eos ut nemo. Pariatur ea fuga non aspernatur. Dignissimos debitis officia corporis est nisi ab et. Atque itaque alias eius voluptas minus. Accusamus numquam tempore occaecati in."
         )
+
+      changeset = User.register_changeset(%User{}, params)
+
+      refute changeset.valid?
+    end
+  end
+
+  describe "user registration, with :birthday_required and :birthday_min_age" do
+    @full_user_data %{
+      bio: "A guy",
+      name: "my name",
+      nickname: "nick",
+      password: "test",
+      password_confirmation: "test",
+      email: "email@example.com"
+    }
+
+    setup do
+      clear_config([:instance, :birthday_required], true)
+      clear_config([:instance, :birthday_min_age], 18 * 365)
+    end
+
+    test "it passes when correct birth date is provided" do
+      today = Date.utc_today()
+      birthday = Date.add(today, -19 * 365)
+
+      params =
+        @full_user_data
+        |> Map.put(:birthday, birthday)
+
+      changeset = User.register_changeset(%User{}, params)
+
+      assert changeset.valid?
+    end
+
+    test "it fails when birth date is not provided" do
+      changeset = User.register_changeset(%User{}, @full_user_data)
+
+      refute changeset.valid?
+    end
+
+    test "it fails when provided invalid birth date" do
+      today = Date.utc_today()
+      birthday = Date.add(today, -17 * 365)
+
+      params =
+        @full_user_data
+        |> Map.put(:birthday, birthday)
 
       changeset = User.register_changeset(%User{}, params)
 
@@ -1649,7 +1697,6 @@ defmodule Pleroma.UserTest do
         ap_enabled: true,
         is_moderator: true,
         is_admin: true,
-        mastofe_settings: %{"a" => "b"},
         mascot: %{"a" => "b"},
         emoji: %{"a" => "b"},
         pleroma_settings_store: %{"q" => "x"},
@@ -1691,7 +1738,6 @@ defmodule Pleroma.UserTest do
              ap_enabled: false,
              is_moderator: false,
              is_admin: false,
-             mastofe_settings: nil,
              mascot: nil,
              emoji: %{},
              pleroma_settings_store: %{},
@@ -1718,6 +1764,38 @@ defmodule Pleroma.UserTest do
     assert user.name == nil
     assert user.avatar == %{}
     assert user.banner == %{}
+  end
+
+  describe "set_suggestion" do
+    test "suggests a user" do
+      user = insert(:user, is_suggested: false)
+      refute user.is_suggested
+      {:ok, user} = User.set_suggestion(user, true)
+      assert user.is_suggested
+    end
+
+    test "suggests a list of users" do
+      unsuggested_users = [
+        insert(:user, is_suggested: false),
+        insert(:user, is_suggested: false),
+        insert(:user, is_suggested: false)
+      ]
+
+      {:ok, users} = User.set_suggestion(unsuggested_users, true)
+
+      assert Enum.count(users) == 3
+
+      Enum.each(users, fn user ->
+        assert user.is_suggested
+      end)
+    end
+
+    test "unsuggests a user" do
+      user = insert(:user, is_suggested: true)
+      assert user.is_suggested
+      {:ok, user} = User.set_suggestion(user, false)
+      refute user.is_suggested
+    end
   end
 
   test "get_public_key_for_ap_id fetches a user that's not in the db" do
@@ -1888,9 +1966,7 @@ defmodule Pleroma.UserTest do
       bio = "A.k.a. @nick@domain.com"
 
       expected_text =
-        ~s(A.k.a. <span class="h-card"><a class="u-url mention" data-user="#{remote_user.id}" href="#{
-          remote_user.ap_id
-        }" rel="ugc">@<span>nick@domain.com</span></a></span>)
+        ~s(A.k.a. <span class="h-card"><a class="u-url mention" data-user="#{remote_user.id}" href="#{remote_user.ap_id}" rel="ugc">@<span>nick@domain.com</span></a></span>)
 
       assert expected_text == User.parse_bio(bio, user)
     end
@@ -2056,6 +2132,17 @@ defmodule Pleroma.UserTest do
       assert user.ap_id in ap_ids
       assert user_two.ap_id in ap_ids
     end
+
+    test "it returns a list of AP ids in the same order" do
+      user = insert(:user)
+      user_two = insert(:user)
+      user_three = insert(:user)
+
+      ap_ids =
+        User.get_ap_ids_by_nicknames([user.nickname, user_three.nickname, user_two.nickname])
+
+      assert [user.ap_id, user_three.ap_id, user_two.ap_id] == ap_ids
+    end
   end
 
   describe "sync followers count" do
@@ -2199,9 +2286,38 @@ defmodule Pleroma.UserTest do
       [user: insert(:user)]
     end
 
-    test "blank email returns error", %{user: user} do
+    test "blank email returns error if we require an email on registration", %{user: user} do
+      orig_account_activation_required =
+        Pleroma.Config.get([:instance, :account_activation_required])
+
+      Pleroma.Config.put([:instance, :account_activation_required], true)
+
+      on_exit(fn ->
+        Pleroma.Config.put(
+          [:instance, :account_activation_required],
+          orig_account_activation_required
+        )
+      end)
+
       assert {:error, %{errors: [email: {"can't be blank", _}]}} = User.change_email(user, "")
       assert {:error, %{errors: [email: {"can't be blank", _}]}} = User.change_email(user, nil)
+    end
+
+    test "blank email should be fine if we do not require an email on registration", %{user: user} do
+      orig_account_activation_required =
+        Pleroma.Config.get([:instance, :account_activation_required])
+
+      Pleroma.Config.put([:instance, :account_activation_required], false)
+
+      on_exit(fn ->
+        Pleroma.Config.put(
+          [:instance, :account_activation_required],
+          orig_account_activation_required
+        )
+      end)
+
+      assert {:ok, %User{email: nil}} = User.change_email(user, "")
+      assert {:ok, %User{email: nil}} = User.change_email(user, nil)
     end
 
     test "non unique email returns error", %{user: user} do
@@ -2218,6 +2334,25 @@ defmodule Pleroma.UserTest do
 
     test "changes email", %{user: user} do
       assert {:ok, %User{email: "cofe@cofe.party"}} = User.change_email(user, "cofe@cofe.party")
+    end
+
+    test "adds email", %{user: user} do
+      orig_account_activation_required =
+        Pleroma.Config.get([:instance, :account_activation_required])
+
+      Pleroma.Config.put([:instance, :account_activation_required], false)
+
+      on_exit(fn ->
+        Pleroma.Config.put(
+          [:instance, :account_activation_required],
+          orig_account_activation_required
+        )
+      end)
+
+      assert {:ok, _} = User.change_email(user, "")
+      Pleroma.Config.put([:instance, :account_activation_required], true)
+
+      assert {:ok, %User{email: "cofe2@cofe.party"}} = User.change_email(user, "cofe2@cofe.party")
     end
   end
 
@@ -2366,13 +2501,16 @@ defmodule Pleroma.UserTest do
   test "active_user_count/1" do
     insert(:user)
     insert(:user, %{local: false})
-    insert(:user, %{last_active_at: Timex.shift(NaiveDateTime.utc_now(), weeks: -5)})
-    insert(:user, %{last_active_at: Timex.shift(NaiveDateTime.utc_now(), weeks: -3)})
     insert(:user, %{last_active_at: NaiveDateTime.utc_now()})
+    insert(:user, %{last_active_at: Timex.shift(NaiveDateTime.utc_now(), days: -15)})
+    insert(:user, %{last_active_at: Timex.shift(NaiveDateTime.utc_now(), weeks: -6)})
+    insert(:user, %{last_active_at: Timex.shift(NaiveDateTime.utc_now(), months: -7)})
+    insert(:user, %{last_active_at: Timex.shift(NaiveDateTime.utc_now(), years: -2)})
 
     assert User.active_user_count() == 2
-    assert User.active_user_count(6) == 3
-    assert User.active_user_count(1) == 1
+    assert User.active_user_count(180) == 3
+    assert User.active_user_count(365) == 4
+    assert User.active_user_count(1000) == 5
   end
 
   describe "pins" do
@@ -2418,5 +2556,40 @@ defmodule Pleroma.UserTest do
     %{id: id} = insert(:note_activity, user: user)
     %{object: %{data: %{"id" => object_id}}} = Activity.get_by_id_with_object(id)
     object_id
+  end
+
+  describe "account endorsements" do
+    test "it pins people" do
+      user = insert(:user)
+      pinned_user = insert(:user)
+
+      {:ok, _pinned_user, _user} = User.follow(user, pinned_user)
+
+      refute User.endorses?(user, pinned_user)
+
+      {:ok, _user_relationship} = User.endorse(user, pinned_user)
+
+      assert User.endorses?(user, pinned_user)
+    end
+
+    test "it unpins users" do
+      user = insert(:user)
+      pinned_user = insert(:user)
+
+      {:ok, _pinned_user, _user} = User.follow(user, pinned_user)
+      {:ok, _user_relationship} = User.endorse(user, pinned_user)
+      {:ok, _user_pin} = User.unendorse(user, pinned_user)
+
+      refute User.endorses?(user, pinned_user)
+    end
+
+    test "it doesn't pin users you do not follow" do
+      user = insert(:user)
+      pinned_user = insert(:user)
+
+      assert {:error, _message} = User.endorse(user, pinned_user)
+
+      refute User.endorses?(user, pinned_user)
+    end
   end
 end

@@ -74,6 +74,7 @@ defmodule Pleroma.Web.MastodonAPI.AccountViewTest do
         fields: []
       },
       fqn: "shp@shitposter.club",
+      last_status_at: nil,
       pleroma: %{
         ap_id: user.ap_id,
         also_known_as: ["https://shitposter.zone/users/shp"],
@@ -83,6 +84,7 @@ defmodule Pleroma.Web.MastodonAPI.AccountViewTest do
         tags: [],
         is_admin: false,
         is_moderator: false,
+        is_suggested: false,
         hide_favorites: true,
         hide_followers: false,
         hide_follows: false,
@@ -174,6 +176,7 @@ defmodule Pleroma.Web.MastodonAPI.AccountViewTest do
         fields: []
       },
       fqn: "shp@shitposter.club",
+      last_status_at: nil,
       pleroma: %{
         ap_id: user.ap_id,
         also_known_as: [],
@@ -183,6 +186,7 @@ defmodule Pleroma.Web.MastodonAPI.AccountViewTest do
         tags: [],
         is_admin: false,
         is_moderator: false,
+        is_suggested: false,
         hide_favorites: true,
         hide_followers: false,
         hide_follows: false,
@@ -268,10 +272,12 @@ defmodule Pleroma.Web.MastodonAPI.AccountViewTest do
       muting: false,
       muting_notifications: false,
       subscribing: false,
+      notifying: false,
       requested: false,
       domain_blocking: false,
       showing_reblogs: true,
-      endorsed: false
+      endorsed: false,
+      note: ""
     }
 
     test "represent a relationship for the following and followed user" do
@@ -293,6 +299,7 @@ defmodule Pleroma.Web.MastodonAPI.AccountViewTest do
             muting: true,
             muting_notifications: true,
             subscribing: true,
+            notifying: true,
             showing_reblogs: false,
             id: to_string(other_user.id)
           }
@@ -484,6 +491,40 @@ defmodule Pleroma.Web.MastodonAPI.AccountViewTest do
                "show.json",
                %{user: user, for: user}
              )[:pleroma][:email] == user.email
+    end
+  end
+
+  describe "hiding birthday" do
+    test "doesn't show birthday if hidden" do
+      user =
+        insert(:user, %{
+          birthday: "2001-02-12",
+          show_birthday: false
+        })
+
+      other_user = insert(:user)
+
+      user = User.get_cached_by_ap_id(user.ap_id)
+
+      assert AccountView.render(
+               "show.json",
+               %{user: user, for: other_user}
+             )[:birthday] == nil
+    end
+
+    test "shows hidden birthday to the account owner" do
+      user =
+        insert(:user, %{
+          birthday: "2001-02-12",
+          show_birthday: false
+        })
+
+      user = User.get_cached_by_ap_id(user.ap_id)
+
+      assert AccountView.render(
+               "show.json",
+               %{user: user, for: user}
+             )[:birthday] == nil
     end
   end
 

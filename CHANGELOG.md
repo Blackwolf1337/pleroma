@@ -6,9 +6,83 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## Unreleased
 
+### Removed
+
+- MastoFE
+
+### Changed
+- Allow users to remove their emails if instance does not need email to register
+
+### Added
+- `activeMonth` and `activeHalfyear` fields in NodeInfo usage.users object
+- Experimental support for Finch. Put `config :tesla, :adapter, {Tesla.Adapter.Finch, name: MyFinch}` in your secrets file to use it. Reverse Proxy will still use Hackney.
+- `ForceMentionsInPostContent` MRF policy
+- AdminAPI: allow moderators to manage reports, users, invites, and custom emojis
+- AdminAPI: restrict moderators to access sensitive data: change user credentials, get password reset token, read private statuses and chats, etc
+- PleromaAPI: Add remote follow API endpoint at `POST /api/v1/pleroma/remote_interaction`
+- MastoAPI: Add `GET /api/v1/accounts/lookup`
+- MastoAPI: Profile Directory support
+- MastoAPI: Support v2 Suggestions (handpicked accounts only)
+- Ability to log slow Ecto queries by configuring `:pleroma, :telemetry, :slow_queries_logging`
+- Added Phoenix LiveDashboard at `/phoenix/live_dashboard`
+- Added `/manifest.json` for progressive web apps.
+- MastoAPI: Support for `birthday` and `show_birthday` field in `/api/v1/accounts/update_credentials`.
+- Configuration: Add `birthday_required` and `birthday_min_age` settings to provide a way to require users to enter their birth date.
+- PleromaAPI: Add `GET /api/v1/pleroma/birthdays` API endpoint
+
+### Fixed
+- Subscription(Bell) Notifications: Don't create from Pipeline Ingested replies
+- Handle Reject for already-accepted Follows properly
+- Display OpenGraph data on alternative notice routes.
+- Fix replies count for remote replies
+- Fixed hashtags disappearing from the end of lines when Markdown is enabled
+- ChatAPI: Add link headers
+- Limited number of search results to 40 to prevent DoS attacks
+- ActivityPub: fixed federation of attachment dimensions
+- Fixed benchmarks
+- Elixir 1.13 support
+- Fixed crash when pinned_objects is nil
+- Fixed slow timelines when there are a lot of deactivated users
+- Fixed account deletion API
+
+### Removed
+
+## 2.4.2 - 2022-01-10
+
+### Fixed
+- Federation issues caused by HTTP pool checkout timeouts
+- Compatibility with Elixir 1.13
+
+### Upgrade notes
+
+1. Restart Pleroma
+
+## 2.4.1 - 2021-08-29
+
+### Changed
+- Make `mix pleroma.database set_text_search_config` run concurrently and indefinitely
+
+### Added
+- AdminAPI: Missing configuration description for StealEmojiPolicy
+
+### Fixed
+- MastodonAPI: Stream out Create activities
+- MRF ObjectAgePolicy: Fix pattern matching on "published"
+- TwitterAPI: Make `change_password` and `change_email` require params on body instead of query
+- Subscription(Bell) Notifications: Don't create from Pipeline Ingested replies
+- AdminAPI: Fix rendering reports containing a `nil` object
+- Mastodon API: Activity Search fallbacks on status fetching after a DB Timeout/Error
+- Mastodon API: Fix crash in Streamer related to reblogging
+- AdminAPI: List available frontends when `static/frontends` folder is missing
+- Make activity search properly use language-aware GIN indexes
+- AdminAPI: Fix suggestions for MRF Policies
+
+## 2.4.0 - 2021-08-08
+
 ### Changed
 
 - **Breaking:** Configuration: `:chat, enabled` moved to `:shout, enabled` and `:instance, chat_limit` moved to `:shout, limit`
+- **Breaking** Entries for simple_policy, transparency_exclusions and quarantined_instances now list both the instance and a reason.
 - Support for Erlang/OTP 24
 - The `application` metadata returned with statuses is no longer hardcoded. Apps that want to display these details will now have valid data for new posts after this change.
 - HTTPSecurityPlug now sends a response header to opt out of Google's FLoC (Federated Learning of Cohorts) targeted advertising.
@@ -23,8 +97,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - MRF (`FollowBotPolicy`): New MRF Policy which makes a designated local Bot account attempt to follow all users in public Notes received by your instance. Users who require approving follower requests or have #nobot in their profile are excluded.
 - Return OAuth token `id` (primary key) in POST `/oauth/token`.
 - AdminAPI: return `created_at` date with users.
+- AdminAPI: add DELETE `/api/v1/pleroma/admin/instances/:instance` to delete all content from a remote instance.
 - `AnalyzeMetadata` upload filter for extracting image/video attachment dimensions and generating blurhashes for images. Blurhashes for videos are not generated at this time.
 - Attachment dimensions and blurhashes are federated when available.
+- Mastodon API: support `poll` notification.
 - Pinned posts federation
 
 ### Fixed
@@ -32,17 +108,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Checking activated Upload Filters for required commands.
 - Remote users can no longer reappear after being deleted.
 - Deactivated users may now be deleted.
+- Deleting an activity with a lot of likes/boosts no longer causes a database timeout.
 - Mix task `pleroma.database prune_objects`
 - Fixed rendering of JSON errors on ActivityPub endpoints.
 - Linkify: Parsing crash with URLs ending in unbalanced closed paren, no path separator, and no query parameters
-
-### Removed
-- **Breaking**: Remove deprecated `/api/qvitter/statuses/notifications/read` (replaced by `/api/v1/pleroma/notifications/read`)
-
-## Unreleased (Patch)
-
-### Fixed
-
 - Try to save exported ConfigDB settings (migrate_from_db) in the system temp directory if default location is not writable.
 - Uploading custom instance thumbnail via AdminAPI/AdminFE generated invalid URL to the image
 - Applying ConcurrentLimiter settings via AdminAPI
@@ -51,7 +120,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - MRF (`SimplePolicy`): Embedded objects are now checked. If any embedded object would be rejected, its parent is rejected. This fixes Announces leaking posts from blocked domains.
 - Fixed some Markdown issues, including trailing slash in links.
 
-## [2.3.0] - 2020-03-01
+### Removed
+- **Breaking**: Remove deprecated `/api/qvitter/statuses/notifications/read` (replaced by `/api/v1/pleroma/notifications/read`)
+
+## [2.3.0] - 2021-03-01
 
 ### Security
 
@@ -101,6 +173,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Support pagination of blocks and mutes.
 - Account backup.
 - Configuration: Add `:instance, autofollowing_nicknames` setting to provide a way to make accounts automatically follow new users that register on the local Pleroma instance.
+- `[:activitypub, :blockers_visible]` config to control visibility of blockers.
 - Ability to view remote timelines, with ex. `/api/v1/timelines/public?instance=lain.com` and streams `public:remote` and `public:remote:media`.
 - The site title is now injected as a `title` tag like preloads or metadata.
 - Password reset tokens now are not accepted after a certain age.
@@ -152,7 +225,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - Mastodon API: Support for expires_in/expires_at in the Filters.
 </details>
 
-## [2.2.2] - 2020-01-18
+## [2.2.2] - 2021-01-18
 
 ### Fixed
 

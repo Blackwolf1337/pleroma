@@ -18,6 +18,7 @@ defmodule Pleroma.Web.CommonAPITest do
   alias Pleroma.Web.ActivityPub.Visibility
   alias Pleroma.Web.AdminAPI.AccountView
   alias Pleroma.Web.CommonAPI
+  alias Pleroma.Workers.PollWorker
 
   import Pleroma.Factory
   import Mock
@@ -48,6 +49,12 @@ defmodule Pleroma.Web.CommonAPITest do
 
       assert object.data["type"] == "Question"
       assert object.data["oneOf"] |> length() == 2
+
+      assert_enqueued(
+        worker: PollWorker,
+        args: %{op: "poll_end", activity_id: activity.id},
+        scheduled_at: NaiveDateTime.from_iso8601!(object.data["closed"])
+      )
     end
   end
 
@@ -202,9 +209,7 @@ defmodule Pleroma.Web.CommonAPITest do
       object = Object.normalize(activity, fetch: false)
 
       assert object.data["content"] ==
-               "<a href=\"https://example.org\" rel=\"ugc\">https://example.org</a> is the site of <span class=\"h-card\"><a class=\"u-url mention\" data-user=\"#{
-                 other_user.id
-               }\" href=\"#{other_user.ap_id}\" rel=\"ugc\">@<span>#{other_user.nickname}</span></a></span> <a class=\"hashtag\" data-tag=\"2hu\" href=\"http://localhost:4001/tag/2hu\">#2hu</a>"
+               "<a href=\"https://example.org\" rel=\"ugc\">https://example.org</a> is the site of <span class=\"h-card\"><a class=\"u-url mention\" data-user=\"#{other_user.id}\" href=\"#{other_user.ap_id}\" rel=\"ugc\">@<span>#{other_user.nickname}</span></a></span> <a class=\"hashtag\" data-tag=\"2hu\" href=\"http://localhost:4001/tag/2hu\">#2hu</a>"
     end
 
     test "it posts a chat message" do
@@ -676,6 +681,32 @@ defmodule Pleroma.Web.CommonAPITest do
                CommonAPI.post(user, %{status: "foobar"})
 
       assert {:ok, _activity} = CommonAPI.post(user, %{status: "12345"})
+    end
+
+    test "it validates media attachment limits are correctly enforced" do
+      clear_config([:instance, :max_media_attachments], 4)
+
+      user = insert(:user)
+
+      file = %Plug.Upload{
+        content_type: "image/jpeg",
+        path: Path.absname("test/fixtures/image.jpg"),
+        filename: "an_image.jpg"
+      }
+
+      {:ok, upload} = ActivityPub.upload(file, actor: user.ap_id)
+
+      assert {:error, "Too many attachments"} =
+               CommonAPI.post(user, %{
+                 status: "",
+                 media_ids: List.duplicate(upload.id, 5)
+               })
+
+      assert {:ok, _activity} =
+               CommonAPI.post(user, %{
+                 status: "",
+                 media_ids: [upload.id]
+               })
     end
 
     test "it can handle activities that expire" do
@@ -1200,6 +1231,18 @@ defmodule Pleroma.Web.CommonAPITest do
       {:ok, follower} = CommonAPI.unfollow(follower, followed)
 
       refute User.subscribed_to?(follower, followed)
+    end
+
+    test "also unpins a user" do
+      [follower, followed] = insert_pair(:user)
+      {:ok, follower, followed, _} = CommonAPI.follow(follower, followed)
+      {:ok, _endorsement} = User.endorse(follower, followed)
+
+      assert User.endorses?(follower, followed)
+
+      {:ok, follower} = CommonAPI.unfollow(follower, followed)
+
+      refute User.endorses?(follower, followed)
     end
 
     test "cancels a pending follow for a local user" do

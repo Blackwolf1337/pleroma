@@ -139,6 +139,7 @@ config :pleroma, Pleroma.Web.Endpoint,
   ],
   protocol: "https",
   secret_key_base: "aK4Abxf29xU9TTDKre9coZPUgevcVCFQJe/5xP/7Lt4BEif6idBIbjupVbOrbKxl",
+  live_view: [signing_salt: "U5ELgdEwTD3n1+D5s0rY0AMg8/y1STxZ3Zvsl3bWh+oBcGrYdil0rXqPMRd3Glcq"],
   signing_salt: "CqaoopA2",
   render_errors: [view: Pleroma.Web.ErrorView, accepts: ~w(json)],
   pubsub_server: Pleroma.PubSub,
@@ -253,7 +254,13 @@ config :pleroma, :instance,
     ]
   ],
   show_reactions: true,
-  password_reset_token_validity: 60 * 60 * 24
+  password_reset_token_validity: 60 * 60 * 24,
+  profile_directory: true,
+  privileged_staff: false,
+  max_endorsed_users: 20,
+  birthday_required: false,
+  birthday_min_age: 0,
+  max_media_attachments: 1_000
 
 config :pleroma, :welcome,
   direct_message: [
@@ -321,9 +328,6 @@ config :pleroma, :frontend_configurations,
     subjectLineBehavior: "email",
     theme: "pleroma-dark",
     webPushNotifications: false
-  },
-  masto_fe: %{
-    showInstanceSpecificPanel: true
   }
 
 config :pleroma, :assets,
@@ -352,6 +356,7 @@ config :pleroma, :manifest,
 config :pleroma, :activitypub,
   unfollow_blocked: true,
   outgoing_blocks: true,
+  blockers_visible: true,
   follow_handshake_timeout: 500,
   note_replies_output_limit: 5,
   sign_object_fetches: true,
@@ -560,6 +565,7 @@ config :pleroma, Oban,
     mailer: 10,
     transmogrifier: 20,
     scheduled_activities: 10,
+    poll_notifications: 10,
     background: 5,
     remote_fetcher: 2,
     attachments_cleanup: 1,

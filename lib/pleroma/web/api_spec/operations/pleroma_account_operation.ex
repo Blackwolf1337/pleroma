@@ -4,6 +4,8 @@
 
 defmodule Pleroma.Web.ApiSpec.PleromaAccountOperation do
   alias OpenApiSpex.Operation
+  alias OpenApiSpex.Schema
+  alias Pleroma.Web.ApiSpec.AccountOperation
   alias Pleroma.Web.ApiSpec.Schemas.AccountRelationship
   alias Pleroma.Web.ApiSpec.Schemas.ApiError
   alias Pleroma.Web.ApiSpec.Schemas.FlakeID
@@ -62,6 +64,25 @@ defmodule Pleroma.Web.ApiSpec.PleromaAccountOperation do
     }
   end
 
+  def endorsements_operation do
+    %Operation{
+      tags: ["Retrieve account information"],
+      summary: "Endorsements",
+      description: "Returns endorsed accounts",
+      operationId: "PleromaAPI.AccountController.endorsements",
+      parameters: [with_relationships_param(), id_param()],
+      responses: %{
+        200 =>
+          Operation.response(
+            "Array of Accounts",
+            "application/json",
+            AccountOperation.array_of_accounts()
+          ),
+        404 => Operation.response("Not Found", "application/json", ApiError)
+      }
+    }
+  end
+
   def subscribe_operation do
     %Operation{
       tags: ["Account actions"],
@@ -88,6 +109,34 @@ defmodule Pleroma.Web.ApiSpec.PleromaAccountOperation do
       responses: %{
         200 => Operation.response("Relationship", "application/json", AccountRelationship),
         404 => Operation.response("Not Found", "application/json", ApiError)
+      }
+    }
+  end
+
+  def birthdays_operation do
+    %Operation{
+      tags: ["Retrieve account information"],
+      summary: "Birthday reminders",
+      description: "Birthday reminders about users you follow.",
+      operationId: "PleromaAPI.AccountController.birthdays",
+      parameters: [
+        Operation.parameter(
+          :day,
+          :query,
+          %Schema{type: :integer},
+          "Day of users' birthdays"
+        ),
+        Operation.parameter(
+          :month,
+          :query,
+          %Schema{type: :integer},
+          "Month of users' birthdays"
+        )
+      ],
+      security: [%{"oAuth" => ["read:accounts"]}],
+      responses: %{
+        200 =>
+          Operation.response("Accounts", "application/json", AccountOperation.array_of_accounts())
       }
     }
   end
