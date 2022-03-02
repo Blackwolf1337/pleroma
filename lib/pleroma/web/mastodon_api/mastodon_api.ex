@@ -63,6 +63,17 @@ defmodule Pleroma.Web.MastodonAPI.MastodonAPI do
   def get_notifications(user, params \\ %{}) do
     options = cast_params(params)
 
+    # TODO: For some reason the user has `is_moderator: false`, while in reality it is moderator. I should be able to do `User.superuser?(user)`
+    options =
+      if not (User.all_superusers() |> Enum.any?(fn u -> u.id == user.id end)) do
+        options
+        |> Map.update(:exclude_types, ["pleroma:report"], fn current_exclude_types ->
+          current_exclude_types ++ ["pleroma:report"]
+        end)
+      else
+        options
+      end
+
     user
     |> Notification.for_user_query(options)
     |> restrict(:include_types, options)

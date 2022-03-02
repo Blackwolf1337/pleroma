@@ -101,6 +101,35 @@ defmodule Pleroma.Web.MastodonAPI.NotificationControllerTest do
     assert [_] = result
   end
 
+  test "Pleroma:report is hidden for non-superusers" do
+    %{user: user, conn: conn} = oauth_access(["read:notifications"])
+    other_user = insert(:user)
+    third_user = insert(:user)
+
+    {:ok, user} = user |> User.admin_api_update(%{is_moderator: true})
+
+    {:ok, activity} = CommonAPI.post(other_user, %{status: "hey"})
+
+    {:ok, _report} =
+      CommonAPI.report(third_user, %{account_id: other_user.id, status_ids: [activity.id]})
+
+    result =
+      conn
+      |> get("/api/v1/notifications?include_types[]=pleroma:report")
+      |> json_response_and_validate_schema(200)
+
+    assert [_] = result
+
+    user |> User.admin_api_update(%{is_moderator: false})
+
+    result =
+      conn
+      |> get("/api/v1/notifications?include_types[]=pleroma:report")
+      |> json_response_and_validate_schema(200)
+
+    assert [] == result
+  end
+
   test "excludes mentions from blockers when blockers_visible is false" do
     clear_config([:activitypub, :blockers_visible], false)
 
