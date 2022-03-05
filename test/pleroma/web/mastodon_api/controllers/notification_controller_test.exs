@@ -74,12 +74,13 @@ defmodule Pleroma.Web.MastodonAPI.NotificationControllerTest do
   end
 
   test "by default, does not contain pleroma:report" do
-    %{user: user, conn: conn} = oauth_access(["read:notifications"])
+    user = insert(:user)
     other_user = insert(:user)
     third_user = insert(:user)
 
-    user
-    |> User.admin_api_update(%{is_moderator: true})
+    {:ok, user} = user |> User.admin_api_update(%{is_moderator: true})
+
+    %{conn: conn} = oauth_access(["read:notifications"], user: user)
 
     {:ok, activity} = CommonAPI.post(other_user, %{status: "hey"})
 
@@ -102,11 +103,13 @@ defmodule Pleroma.Web.MastodonAPI.NotificationControllerTest do
   end
 
   test "Pleroma:report is hidden for non-superusers" do
-    %{user: user, conn: conn} = oauth_access(["read:notifications"])
+    user = insert(:user)
     other_user = insert(:user)
     third_user = insert(:user)
 
     {:ok, user} = user |> User.admin_api_update(%{is_moderator: true})
+
+    %{conn: conn} = oauth_access(["read:notifications"], user: user)
 
     {:ok, activity} = CommonAPI.post(other_user, %{status: "hey"})
 
@@ -120,7 +123,9 @@ defmodule Pleroma.Web.MastodonAPI.NotificationControllerTest do
 
     assert [_] = result
 
-    user |> User.admin_api_update(%{is_moderator: false})
+    {:ok, user} = user |> User.admin_api_update(%{is_moderator: false})
+
+    %{conn: conn} = oauth_access(["read:notifications"], user: user)
 
     result =
       conn
