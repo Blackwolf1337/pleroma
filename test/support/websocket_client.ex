@@ -3,6 +3,8 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 
 defmodule Pleroma.Integration.WebsocketClient do
+  use Agent
+
   # https://github.com/phoenixframework/phoenix/blob/master/test/support/websocket_client.exs
 
   @doc """
@@ -10,15 +12,25 @@ defmodule Pleroma.Integration.WebsocketClient do
   are forwarded to the sender pid
   """
   def start_link(sender, url, headers \\ []) do
+    Agent.start_link(fn -> {} end, name: __MODULE__)
+
     :crypto.start()
     :ssl.start()
 
-    :websocket_client.start_link(
-      String.to_charlist(url),
-      __MODULE__,
-      [sender],
-      extra_headers: headers
-    )
+    ret =
+      :websocket_client.start_link(
+        String.to_charlist(url),
+        __MODULE__,
+        [sender],
+        extra_headers: headers
+      )
+
+    Agent.update(__MODULE__, fn _ -> ret end)
+
+    # sleep a little, maybe ondisconnect will be called
+    Process.sleep(100)
+
+    Agent.get(__MODULE__, & &1)
   end
 
   @doc """
@@ -29,6 +41,24 @@ defmodule Pleroma.Integration.WebsocketClient do
   end
 
   @doc """
+  Callback: called when the websocket client connects.
+  """
+  def onconnect(_req, state) do
+    {:ok, state}
+  end
+
+  @doc """
+  Callback: called when the websocket client disconnects.
+
+  The new client puts the 401/404/etc. HTTP error in reason,
+  so we update the agent with it.
+  """
+  def ondisconnect(reason, state) do
+    Agent.update(__MODULE__, fn _ -> reason end)
+    {:ok, state}
+  end
+
+  @doc """
   Sends a low-level text message to the client.
   """
   def send_text(server_pid, msg) do
@@ -36,8 +66,8 @@ defmodule Pleroma.Integration.WebsocketClient do
   end
 
   @doc false
-  def init([sender], _conn_state) do
-    {:ok, %{sender: sender}}
+  def init([sender]) do
+    {:once, %{sender: sender}}
   end
 
   @doc false
