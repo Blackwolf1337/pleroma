@@ -40,6 +40,7 @@ defmodule Pleroma.Web.AdminAPI.ReportView do
       actor: merge_account_views(user),
       content: content,
       created_at: created_at,
+      emojis: [],
       statuses:
         StatusView.render("index.json", %{
           activities: statuses,
