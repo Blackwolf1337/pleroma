@@ -11,6 +11,7 @@ defmodule Pleroma.Web.ActivityPub.ActivityPub do
   alias Pleroma.Conversation.Participation
   alias Pleroma.Filter
   alias Pleroma.Hashtag
+  alias Pleroma.HashtagObject
   alias Pleroma.Maps
   alias Pleroma.Notification
   alias Pleroma.Object
@@ -95,14 +96,6 @@ defmodule Pleroma.Web.ActivityPub.ActivityPub do
   end
 
   defp increase_replies_count_if_reply(_create_data), do: :noop
-
-  @object_types ~w[ChatMessage Question Answer Audio Video Event Article Note Page]
-  @impl true
-  def persist(%{"type" => type} = object, meta) when type in @object_types do
-    with {:ok, object} <- Object.create(object) do
-      {:ok, object, meta}
-    end
-  end
 
   @impl true
   def persist(object, meta) do
@@ -780,8 +773,8 @@ defmodule Pleroma.Web.ActivityPub.ActivityPub do
   defp restrict_embedded_tag_reject_any(query, _), do: query
 
   defp object_ids_query_for_tags(tags) do
-    from(hto in "hashtags_objects")
-    |> join(:inner, [hto], ht in Pleroma.Hashtag, on: hto.hashtag_id == ht.id)
+    from(hto in HashtagObject)
+    |> join(:inner, [hto], ht in Hashtag, on: hto.hashtag_id == ht.id)
     |> where([hto, ht], ht.name in ^tags)
     |> select([hto], hto.object_id)
     |> distinct([hto], true)
@@ -830,7 +823,7 @@ defmodule Pleroma.Web.ActivityPub.ActivityPub do
     # Note: NO extra ordering should be done on "activities.id desc nulls last" for optimal plan
     from(
       [_activity, object] in query,
-      join: hto in "hashtags_objects",
+      join: hto in HashtagObject,
       on: hto.object_id == object.id,
       where: hto.hashtag_id in ^hashtag_ids,
       distinct: [desc: object.id],
@@ -1035,7 +1028,7 @@ defmodule Pleroma.Web.ActivityPub.ActivityPub do
     from(
       [activity, object: o] in query,
       # You don't block the author
-      where: fragment("not (? = ANY(?))", activity.actor, ^blocked_ap_ids),
+      where: fragment("not (? && ?)", [activity.actor], ^blocked_ap_ids),
 
       # You don't block any recipients, and didn't author the post
       where:
@@ -1099,7 +1092,7 @@ defmodule Pleroma.Web.ActivityPub.ActivityPub do
       from(
         activity in query,
         # The author doesn't block you
-        where: fragment("not (? = ANY(?))", activity.actor, ^blocker_ap_ids),
+        where: fragment("not (? && ?)", [activity.actor], ^blocker_ap_ids),
 
         # It's not a boost of a user that blocks you
         where:
@@ -1165,7 +1158,7 @@ defmodule Pleroma.Web.ActivityPub.ActivityPub do
   defp restrict_instance(query, %{instance: instance}) when is_binary(instance) do
     from(
       activity in query,
-      where: fragment("split_part(actor::text, '/'::text, 3) = ?", ^instance)
+      where: fragment("split_part(?::text, '/'::text, 3) = ?", activity.actor, ^instance)
     )
   end
 
