@@ -51,7 +51,12 @@ defmodule Pleroma.Web.TwitterAPI.UtilController do
         render(conn, "subscribe.html", %{
           nickname: nick,
           avatar: nil,
-          error: "Could not find user"
+          error:
+            Pleroma.Web.Gettext.dpgettext(
+              "static_pages",
+              "remote follow error message - user not found",
+              "Could not find user"
+            )
         })
     end
   end
@@ -74,7 +79,12 @@ defmodule Pleroma.Web.TwitterAPI.UtilController do
         render(conn, "status_interact.html", %{
           status_id: id,
           avatar: nil,
-          error: "Could not find status"
+          error:
+            Pleroma.Web.Gettext.dpgettext(
+              "static_pages",
+              "status interact error message - status not found",
+              "Could not find status"
+            )
         })
     end
   end
@@ -97,7 +107,12 @@ defmodule Pleroma.Web.TwitterAPI.UtilController do
         render(conn, "subscribe.html", %{
           nickname: nick,
           avatar: nil,
-          error: "Something went wrong."
+          error:
+            Pleroma.Web.Gettext.dpgettext(
+              "static_pages",
+              "remote follow error message - unknown error",
+              "Something went wrong."
+            )
         })
     end
   end
@@ -113,7 +128,12 @@ defmodule Pleroma.Web.TwitterAPI.UtilController do
         render(conn, "status_interact.html", %{
           status_id: id,
           avatar: nil,
-          error: "Something went wrong."
+          error:
+            Pleroma.Web.Gettext.dpgettext(
+              "static_pages",
+              "status interact error message - unknown error",
+              "Something went wrong."
+            )
         })
     end
   end
