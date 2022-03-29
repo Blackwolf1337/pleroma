@@ -29,7 +29,10 @@ defmodule Pleroma.Web.TwitterAPI.PasswordController do
   end
 
   def do_reset(conn, %{"data" => data}) do
-    with {:ok, _} <- PasswordResetToken.reset_password(data["token"], data) do
+    with {:ok, _, u} <- PasswordResetToken.reset_password(data["token"], data) do
+      with %User{} = user <- u, true <- user.local and !user.is_confirmed do
+        User.confirm(user)
+      end
       render(conn, "reset_success.html")
     else
       _e -> render(conn, "reset_failed.html")
