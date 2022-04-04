@@ -105,6 +105,10 @@ defmodule Pleroma.Web.Router do
     plug(Pleroma.Web.Plugs.EnsureStaffPrivilegedPlug)
   end
 
+  pipeline :require_moderation_tag_report_triage do
+    plug(Pleroma.Web.Plugs.EnsureUserTag.ModerationReportTriage)
+  end
+
   pipeline :require_admin do
     plug(Pleroma.Web.Plugs.UserIsAdminPlug)
   end
@@ -272,12 +276,6 @@ defmodule Pleroma.Web.Router do
     get("/instances/:instance/statuses", InstanceController, :list_statuses)
     delete("/instances/:instance", InstanceController, :delete)
 
-    get("/reports", ReportController, :index)
-    get("/reports/:id", ReportController, :show)
-    patch("/reports", ReportController, :update)
-    post("/reports/:id/notes", ReportController, :notes_create)
-    delete("/reports/:report_id/notes/:id", ReportController, :notes_delete)
-
     get("/statuses/:id", StatusController, :show)
     put("/statuses/:id", StatusController, :update)
     delete("/statuses/:id", StatusController, :delete)
@@ -288,6 +286,17 @@ defmodule Pleroma.Web.Router do
     get("/stats", AdminAPIController, :stats)
 
     delete("/chats/:id/messages/:message_id", ChatController, :delete_message)
+  end
+
+  # AdminAPI: admins and mods (staff) with moderation_tag:report-triage can perform these actions
+  scope "/api/v1/pleroma/admin", Pleroma.Web.AdminAPI do
+    pipe_through([:admin_api, :require_moderation_tag_report_triage])
+
+    get("/reports", ReportController, :index)
+    get("/reports/:id", ReportController, :show)
+    patch("/reports", ReportController, :update)
+    post("/reports/:id/notes", ReportController, :notes_create)
+    delete("/reports/:report_id/notes/:id", ReportController, :notes_delete)
   end
 
   scope "/api/v1/pleroma/emoji", Pleroma.Web.PleromaAPI do

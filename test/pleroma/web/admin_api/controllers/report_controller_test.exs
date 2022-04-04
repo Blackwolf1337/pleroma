@@ -14,7 +14,7 @@ defmodule Pleroma.Web.AdminAPI.ReportControllerTest do
   alias Pleroma.Web.CommonAPI
 
   setup do
-    admin = insert(:user, is_admin: true)
+    admin = insert(:user, is_admin: true, tags: ["moderation_tag:report-triage"])
     token = insert(:oauth_admin_token, user: admin)
 
     conn =
