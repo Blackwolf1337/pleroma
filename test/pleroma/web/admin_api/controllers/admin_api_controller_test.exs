@@ -25,7 +25,7 @@ defmodule Pleroma.Web.AdminAPI.AdminAPIControllerTest do
   end
 
   setup do
-    admin = insert(:user, is_admin: true)
+    admin = insert(:user, is_admin: true, tags: ["moderation_tag:messages-read-non-public"])
     token = insert(:oauth_admin_token, user: admin)
 
     conn =
@@ -417,6 +417,18 @@ defmodule Pleroma.Web.AdminAPI.AdminAPIControllerTest do
                )
                |> json_response(200)
     end
+
+    test "it requires user tag moderation_tag:messages-read-non-public", %{conn: conn, user: user} do
+      conn =
+        conn.assigns.user.tags
+        |> put_in(conn.assigns.user.tags -- ["moderation_tag:messages-read-non-public"])
+
+      response =
+        conn
+        |> get("/api/pleroma/admin/users/#{user.nickname}/statuses?godmode=true")
+
+      assert match?(%{status: 403}, response)
+    end
   end
 
   describe "GET /api/pleroma/admin/users/:nickname/chats" do
@@ -435,6 +447,18 @@ defmodule Pleroma.Web.AdminAPI.AdminAPIControllerTest do
       conn = get(conn, "/api/pleroma/admin/users/#{user.nickname}/chats")
 
       assert json_response(conn, 200) |> length() == 3
+    end
+
+    test "it requires user tag moderation_tag:messages-read-non-public", %{conn: conn, user: user} do
+      conn =
+        conn.assigns.user.tags
+        |> put_in(conn.assigns.user.tags -- ["moderation_tag:messages-read-non-public"])
+
+      response =
+        conn
+        |> get("/api/pleroma/admin/users/#{user.nickname}/chats")
+
+      assert match?(%{status: 403}, response)
     end
   end
 

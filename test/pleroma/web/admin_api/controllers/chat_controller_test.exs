@@ -14,8 +14,8 @@ defmodule Pleroma.Web.AdminAPI.ChatControllerTest do
   alias Pleroma.Repo
   alias Pleroma.Web.CommonAPI
 
-  defp admin_setup do
-    admin = insert(:user, is_admin: true)
+  setup do
+    admin = insert(:user, is_admin: true, tags: ["moderation_tag:messages-read-non-public"])
     token = insert(:oauth_admin_token, user: admin)
 
     conn =
@@ -27,8 +27,6 @@ defmodule Pleroma.Web.AdminAPI.ChatControllerTest do
   end
 
   describe "DELETE /api/pleroma/admin/chats/:id/messages/:message_id" do
-    setup do: admin_setup()
-
     test "it deletes a message from the chat", %{conn: conn, admin: admin} do
       user = insert(:user)
       recipient = insert(:user)
@@ -63,17 +61,19 @@ defmodule Pleroma.Web.AdminAPI.ChatControllerTest do
   end
 
   describe "GET /api/pleroma/admin/chats/:id/messages" do
-    setup do: admin_setup()
-
-    test "it paginates", %{conn: conn} do
+    setup do
       user = insert(:user)
-      recipient = insert(:user)
+      other_user = insert(:user)
 
+      {:ok, chat} = Chat.get_or_create(user.id, other_user.ap_id)
+
+      %{chat: chat, user: user, other_user: other_user}
+    end
+
+    test "it paginates", %{conn: conn, chat: chat, user: user, other_user: other_user} do
       Enum.each(1..30, fn _ ->
-        {:ok, _} = CommonAPI.post_chat_message(user, recipient, "hey")
+        {:ok, _} = CommonAPI.post_chat_message(user, other_user, "hey")
       end)
-
-      chat = Chat.get(user.id, recipient.ap_id)
 
       result =
         conn
@@ -90,17 +90,18 @@ defmodule Pleroma.Web.AdminAPI.ChatControllerTest do
       assert length(result) == 10
     end
 
-    test "it returns the messages for a given chat", %{conn: conn} do
-      user = insert(:user)
-      other_user = insert(:user)
+    test "it returns the messages for a given chat", %{
+      conn: conn,
+      chat: chat,
+      user: user,
+      other_user: other_user
+    } do
       third_user = insert(:user)
 
       {:ok, _} = CommonAPI.post_chat_message(user, other_user, "hey")
       {:ok, _} = CommonAPI.post_chat_message(user, third_user, "hey")
       {:ok, _} = CommonAPI.post_chat_message(user, other_user, "how are you?")
       {:ok, _} = CommonAPI.post_chat_message(other_user, user, "fine, how about you?")
-
-      chat = Chat.get(user.id, other_user.ap_id)
 
       result =
         conn
@@ -114,17 +115,31 @@ defmodule Pleroma.Web.AdminAPI.ChatControllerTest do
 
       assert length(result) == 3
     end
+
+    test "it requires user tag moderation_tag:messages-read-non-public", %{conn: conn, chat: chat} do
+      conn =
+        conn.assigns.user.tags
+        |> put_in(conn.assigns.user.tags -- ["moderation_tag:messages-read-non-public"])
+
+      response =
+        conn
+        |> get("/api/pleroma/admin/chats/#{chat.id}/messages")
+
+      assert match?(%{status: 403}, response)
+    end
   end
 
   describe "GET /api/pleroma/admin/chats/:id" do
-    setup do: admin_setup()
-
-    test "it returns a chat", %{conn: conn} do
+    setup do
       user = insert(:user)
       other_user = insert(:user)
 
       {:ok, chat} = Chat.get_or_create(user.id, other_user.ap_id)
 
+      %{chat: chat}
+    end
+
+    test "it returns a chat", %{conn: conn, chat: chat} do
       result =
         conn
         |> get("/api/pleroma/admin/chats/#{chat.id}")
@@ -134,6 +149,18 @@ defmodule Pleroma.Web.AdminAPI.ChatControllerTest do
       assert %{} = result["sender"]
       assert %{} = result["receiver"]
       refute result["account"]
+    end
+
+    test "it requires user tag moderation_tag:messages-read-non-public", %{conn: conn, chat: chat} do
+      conn =
+        conn.assigns.user.tags
+        |> put_in(conn.assigns.user.tags -- ["moderation_tag:messages-read-non-public"])
+
+      response =
+        conn
+        |> get("/api/pleroma/admin/chats/#{chat.id}")
+
+      assert match?(%{status: 403}, response)
     end
   end
 

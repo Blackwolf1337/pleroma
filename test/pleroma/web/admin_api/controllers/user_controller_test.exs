@@ -1016,7 +1016,7 @@ defmodule Pleroma.Web.AdminAPI.UserControllerTest do
       "nickname" => user.nickname,
       "roles" => %{"admin" => false, "moderator" => false},
       "local" => user.local,
-      "tags" => [],
+      "tags" => user.tags,
       "avatar" => User.avatar_url(user) |> MediaProxy.url(),
       "display_name" => HTML.strip_tags(user.name || user.nickname),
       "is_confirmed" => true,

@@ -14,7 +14,7 @@ defmodule Pleroma.Web.AdminAPI.StatusControllerTest do
   alias Pleroma.Web.CommonAPI
 
   setup do
-    admin = insert(:user, is_admin: true)
+    admin = insert(:user, is_admin: true, tags: ["moderation_tag:messages-read-non-public"])
     token = insert(:oauth_admin_token, user: admin)
 
     conn =
@@ -196,6 +196,18 @@ defmodule Pleroma.Web.AdminAPI.StatusControllerTest do
       {:ok, _} = CommonAPI.post(user, %{status: ".", visibility: "public"})
       conn = get(conn, "/api/pleroma/admin/statuses?godmode=true")
       assert json_response_and_validate_schema(conn, 200) |> length() == 3
+    end
+
+    test "it requires user tag moderation_tag:messages-read-non-public", %{conn: conn} do
+      conn =
+        conn.assigns.user.tags
+        |> put_in(conn.assigns.user.tags -- ["moderation_tag:messages-read-non-public"])
+
+      response =
+        conn
+        |> get("/api/pleroma/admin/statuses")
+
+      assert match?(%{status: 403}, response)
     end
   end
 end

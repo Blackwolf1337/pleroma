@@ -124,9 +124,9 @@ defmodule Pleroma.Web.Router do
     plug(Pleroma.Web.Plugs.EnsureUserTag, "moderation_tag:post-deletion")
   end
 
-  pipeline :require_moderation_tag_post_read_private do
+  pipeline :require_moderation_tag_messages_read_non_public do
     plug(:admin_api)
-    plug(Pleroma.Web.Plugs.EnsureUserTag, "moderation_tag:post-read-private")
+    plug(Pleroma.Web.Plugs.EnsureUserTag, "moderation_tag:messages-read-non-public")
   end
 
   pipeline :require_moderation_tag_account_restriction do
@@ -274,14 +274,6 @@ defmodule Pleroma.Web.Router do
 
     get("/users/:nickname/password_reset", AdminAPIController, :get_password_reset)
     patch("/users/:nickname/credentials", AdminAPIController, :update_user_credentials)
-
-    get("/users/:nickname/statuses", AdminAPIController, :list_user_statuses)
-    get("/users/:nickname/chats", AdminAPIController, :list_user_chats)
-
-    get("/statuses", StatusController, :index)
-
-    get("/chats/:id", ChatController, :show)
-    get("/chats/:id/messages", ChatController, :messages)
   end
 
   # AdminAPI: admins and mods (staff) can perform these actions
@@ -341,9 +333,15 @@ defmodule Pleroma.Web.Router do
   end
 
   # AdminAPI
-  # admins and mods (staff) with moderation_tag:post-read-private can perform these actions
+  # admins and mods (staff) with moderation_tag:messages-read-non-public can perform these actions
   scope "/api/v1/pleroma/admin", Pleroma.Web.AdminAPI do
-    pipe_through(:require_moderation_tag_post_read_private)
+    pipe_through(:require_moderation_tag_messages_read_non_public)
+
+    get("/statuses", StatusController, :index)
+    get("/users/:nickname/statuses", AdminAPIController, :list_user_statuses)
+    get("/users/:nickname/chats", AdminAPIController, :list_user_chats)
+    get("/chats/:id", ChatController, :show)
+    get("/chats/:id/messages", ChatController, :messages)
   end
 
   # AdminAPI
