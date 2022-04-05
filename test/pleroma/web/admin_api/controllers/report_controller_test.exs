@@ -59,6 +59,16 @@ defmodule Pleroma.Web.AdminAPI.ReportControllerTest do
 
       assert json_response_and_validate_schema(conn, :not_found) == %{"error" => "Not found"}
     end
+
+    test "requires user tag moderation_tag:report-triage", %{conn: conn} do
+      conn = conn.assigns.user.tags |> put_in([])
+
+      response =
+        conn
+        |> get("/api/pleroma/admin/reports/test")
+
+      assert match?(%{status: 403}, response)
+    end
   end
 
   describe "PATCH /api/pleroma/admin/reports" do
@@ -110,6 +120,20 @@ defmodule Pleroma.Web.AdminAPI.ReportControllerTest do
         "reports" => [%{"state" => "resolved", "id" => id}]
       })
       |> json_response_and_validate_schema(:no_content)
+    end
+
+
+    test "requires user tag moderation_tag:report-triage", %{conn: conn} do
+      conn = conn.assigns.user.tags |> put_in([])
+
+      response =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> patch("/api/pleroma/admin/reports", %{
+          "reports" => [%{"state" => "resolved", "id" => "test"}]
+        })
+
+      assert match?(%{status: 403}, response)
     end
 
     test "mark report as resolved", %{conn: conn, id: id, admin: admin} do
@@ -306,6 +330,16 @@ defmodule Pleroma.Web.AdminAPI.ReportControllerTest do
                %{"error" => "User is not a staff member."}
     end
 
+    test "requires user tag moderation_tag:report-triage", %{conn: conn} do
+      conn = conn.assigns.user.tags |> put_in([])
+
+      response =
+        conn
+        |> get("/api/pleroma/admin/reports")
+
+      assert match?(%{status: 403}, response)
+    end
+
     test "returns 403 when requested by anonymous" do
       conn = get(build_conn(), "/api/pleroma/admin/reports")
 
@@ -355,6 +389,19 @@ defmodule Pleroma.Web.AdminAPI.ReportControllerTest do
              } = note
     end
 
+    test "requires user tag moderation_tag:report-triage", %{conn: conn, report_id: report_id} do
+      conn = conn.assigns.user.tags |> put_in([])
+
+      response =
+      conn
+      |> put_req_header("content-type", "application/json")
+      |> post("/api/pleroma/admin/reports/#{report_id}/notes", %{
+        content: "this is disgusting3!"
+      })
+
+      assert match?(%{status: 403}, response)
+    end
+
     @tag :erratic
     test "it returns reports with notes", %{conn: conn, admin: admin} do
       conn = get(conn, "/api/pleroma/admin/reports")
@@ -376,6 +423,15 @@ defmodule Pleroma.Web.AdminAPI.ReportControllerTest do
       delete(conn, "/api/pleroma/admin/reports/#{report_id}/notes/#{note.id}")
 
       assert ReportNote |> Repo.all() |> length() == 1
+    end
+
+    test "deletes requires user tag moderation_tag:report-triage", %{conn: conn, report_id: report_id} do
+      conn = conn.assigns.user.tags |> put_in([])
+      [note, _] = Repo.all(ReportNote)
+
+      response = conn |> delete("/api/pleroma/admin/reports/#{report_id}/notes/#{note.id}")
+
+      assert match?(%{status: 403}, response)
     end
   end
 end
