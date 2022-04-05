@@ -134,9 +134,9 @@ defmodule Pleroma.Web.Router do
     plug(Pleroma.Web.Plugs.EnsureUserTag, "moderation_tag:account-restriction")
   end
 
-  pipeline :require_moderation_tag_account_deactivation do
+  pipeline :require_moderation_tag_account_activation do
     plug(:admin_api)
-    plug(Pleroma.Web.Plugs.EnsureUserTag, "moderation_tag:account-deactivation")
+    plug(Pleroma.Web.Plugs.EnsureUserTag, "moderation_tag:account-activation")
   end
 
   pipeline :require_moderation_tag_account_deletion do
@@ -291,9 +291,6 @@ defmodule Pleroma.Web.Router do
     put("/users/tag", AdminAPIController, :tag_users)
     delete("/users/tag", AdminAPIController, :untag_users)
 
-    patch("/users/:nickname/toggle_activation", UserController, :toggle_activation)
-    patch("/users/activate", UserController, :activate)
-    patch("/users/deactivate", UserController, :deactivate)
     patch("/users/approve", UserController, :approve)
 
     post("/users/invite_token", InviteController, :create)
@@ -358,7 +355,11 @@ defmodule Pleroma.Web.Router do
   # AdminAPI
   # admins and mods (staff) with moderation_tag:account-deactivation can perform these actions
   scope "/api/v1/pleroma/admin", Pleroma.Web.AdminAPI do
-    pipe_through(:require_moderation_tag_account_deactivation)
+    pipe_through(:require_moderation_tag_account_activation)
+
+    patch("/users/:nickname/toggle_activation", UserController, :toggle_activation)
+    patch("/users/activate", UserController, :activate)
+    patch("/users/deactivate", UserController, :deactivate)
   end
 
   # AdminAPI

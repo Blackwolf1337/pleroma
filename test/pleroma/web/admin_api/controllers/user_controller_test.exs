@@ -26,7 +26,7 @@ defmodule Pleroma.Web.AdminAPI.UserControllerTest do
   end
 
   setup do
-    admin = insert(:user, is_admin: true)
+    admin = insert(:user, is_admin: true, tags: ["moderation_tag:account-activation"])
     token = insert(:oauth_admin_token, user: admin)
 
     conn =
@@ -810,46 +810,91 @@ defmodule Pleroma.Web.AdminAPI.UserControllerTest do
     end
   end
 
-  test "PATCH /api/pleroma/admin/users/activate", %{admin: admin, conn: conn} do
-    user_one = insert(:user, is_active: false)
-    user_two = insert(:user, is_active: false)
+  describe "PATCH /api/pleroma/admin/users/activate" do
+    test "it activates users and logs an entry in the moderation log", %{admin: admin, conn: conn} do
+      user_one = insert(:user, is_active: false)
+      user_two = insert(:user, is_active: false)
 
-    conn =
-      conn
-      |> put_req_header("content-type", "application/json")
-      |> patch(
-        "/api/pleroma/admin/users/activate",
-        %{nicknames: [user_one.nickname, user_two.nickname]}
-      )
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> patch(
+          "/api/pleroma/admin/users/activate",
+          %{nicknames: [user_one.nickname, user_two.nickname]}
+        )
 
-    response = json_response_and_validate_schema(conn, 200)
-    assert Enum.map(response["users"], & &1["is_active"]) == [true, true]
+      response = json_response_and_validate_schema(conn, 200)
+      assert Enum.map(response["users"], & &1["is_active"]) == [true, true]
 
-    log_entry = Repo.one(ModerationLog)
+      log_entry = Repo.one(ModerationLog)
 
-    assert ModerationLog.get_log_entry_message(log_entry) ==
-             "@#{admin.nickname} activated users: @#{user_one.nickname}, @#{user_two.nickname}"
+      assert ModerationLog.get_log_entry_message(log_entry) ==
+               "@#{admin.nickname} activated users: @#{user_one.nickname}, @#{user_two.nickname}"
+    end
+
+    test "it requires user tag moderation_tag:account-activation", %{conn: conn} do
+      conn =
+        conn.assigns.user.tags
+        |> put_in(conn.assigns.user.tags -- ["moderation_tag:account-activation"])
+
+      user_one = insert(:user, is_active: false)
+      user_two = insert(:user, is_active: false)
+
+      response =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> patch(
+          "/api/pleroma/admin/users/activate",
+          %{nicknames: [user_one.nickname, user_two.nickname]}
+        )
+
+      assert match?(%{status: 403}, response)
+    end
   end
 
-  test "PATCH /api/pleroma/admin/users/deactivate", %{admin: admin, conn: conn} do
-    user_one = insert(:user, is_active: true)
-    user_two = insert(:user, is_active: true)
+  describe "PATCH /api/pleroma/admin/users/deactivate" do
+    test "it deactivates users and logs an entry in the moderation log", %{
+      admin: admin,
+      conn: conn
+    } do
+      user_one = insert(:user, is_active: true)
+      user_two = insert(:user, is_active: true)
 
-    conn =
-      conn
-      |> put_req_header("content-type", "application/json")
-      |> patch(
-        "/api/pleroma/admin/users/deactivate",
-        %{nicknames: [user_one.nickname, user_two.nickname]}
-      )
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> patch(
+          "/api/pleroma/admin/users/deactivate",
+          %{nicknames: [user_one.nickname, user_two.nickname]}
+        )
 
-    response = json_response_and_validate_schema(conn, 200)
-    assert Enum.map(response["users"], & &1["is_active"]) == [false, false]
+      response = json_response_and_validate_schema(conn, 200)
+      assert Enum.map(response["users"], & &1["is_active"]) == [false, false]
 
-    log_entry = Repo.one(ModerationLog)
+      log_entry = Repo.one(ModerationLog)
 
-    assert ModerationLog.get_log_entry_message(log_entry) ==
-             "@#{admin.nickname} deactivated users: @#{user_one.nickname}, @#{user_two.nickname}"
+      assert ModerationLog.get_log_entry_message(log_entry) ==
+               "@#{admin.nickname} deactivated users: @#{user_one.nickname}, @#{user_two.nickname}"
+    end
+
+    test "it requires user tag moderation_tag:account-activation", %{conn: conn} do
+      conn =
+        conn.assigns.user.tags
+        |> put_in(conn.assigns.user.tags -- ["moderation_tag:account-activation"])
+
+      user_one = insert(:user, is_active: true)
+      user_two = insert(:user, is_active: true)
+
+      response =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> patch(
+          "/api/pleroma/admin/users/deactivate",
+          %{nicknames: [user_one.nickname, user_two.nickname]}
+        )
+
+      assert match?(%{status: 403}, response)
+    end
   end
 
   test "PATCH /api/pleroma/admin/users/approve", %{admin: admin, conn: conn} do
@@ -923,24 +968,44 @@ defmodule Pleroma.Web.AdminAPI.UserControllerTest do
              "@#{admin.nickname} removed suggested users: @#{user1.nickname}, @#{user2.nickname}"
   end
 
-  test "PATCH /api/pleroma/admin/users/:nickname/toggle_activation", %{admin: admin, conn: conn} do
-    user = insert(:user)
+  describe "PATCH /api/pleroma/admin/users/:nickname/toggle_activation" do
+    test "it toggles wether a user is active and logs an entry in the moderation log", %{
+      admin: admin,
+      conn: conn
+    } do
+      user = insert(:user)
 
-    conn =
-      conn
-      |> put_req_header("content-type", "application/json")
-      |> patch("/api/pleroma/admin/users/#{user.nickname}/toggle_activation")
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> patch("/api/pleroma/admin/users/#{user.nickname}/toggle_activation")
 
-    assert json_response_and_validate_schema(conn, 200) ==
-             user_response(
-               user,
-               %{"is_active" => !user.is_active}
-             )
+      assert json_response_and_validate_schema(conn, 200) ==
+               user_response(
+                 user,
+                 %{"is_active" => !user.is_active}
+               )
 
-    log_entry = Repo.one(ModerationLog)
+      log_entry = Repo.one(ModerationLog)
 
-    assert ModerationLog.get_log_entry_message(log_entry) ==
-             "@#{admin.nickname} deactivated users: @#{user.nickname}"
+      assert ModerationLog.get_log_entry_message(log_entry) ==
+               "@#{admin.nickname} deactivated users: @#{user.nickname}"
+    end
+
+    test "it requires user tag moderation_tag:account-activation", %{conn: conn} do
+      conn =
+        conn.assigns.user.tags
+        |> put_in(conn.assigns.user.tags -- ["moderation_tag:account-activation"])
+
+      user = insert(:user)
+
+      response =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> patch("/api/pleroma/admin/users/#{user.nickname}/toggle_activation")
+
+      assert match?(%{status: 403}, response)
+    end
   end
 
   defp user_response(user, attrs \\ %{}) do
