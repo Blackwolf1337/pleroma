@@ -109,6 +109,41 @@ defmodule Pleroma.Web.Router do
     plug(Pleroma.Web.Plugs.UserIsAdminPlug)
   end
 
+  pipeline :require_moderation_tag_report_triage do
+    plug(:admin_api)
+    plug(Pleroma.Web.Plugs.EnsureUserTag, "moderation_tag:report-triage")
+  end
+
+  pipeline :require_moderation_tag_posts_restriction do
+    plug(:admin_api)
+    plug(Pleroma.Web.Plugs.EnsureUserTag, "moderation_tag:posts-restriction")
+  end
+
+  pipeline :require_moderation_tag_post_deletion do
+    plug(:admin_api)
+    plug(Pleroma.Web.Plugs.EnsureUserTag, "moderation_tag:post-deletion")
+  end
+
+  pipeline :require_moderation_tag_post_read_private do
+    plug(:admin_api)
+    plug(Pleroma.Web.Plugs.EnsureUserTag, "moderation_tag:post-read-private")
+  end
+
+  pipeline :require_moderation_tag_account_restriction do
+    plug(:admin_api)
+    plug(Pleroma.Web.Plugs.EnsureUserTag, "moderation_tag:account-restriction")
+  end
+
+  pipeline :require_moderation_tag_account_deactivation do
+    plug(:admin_api)
+    plug(Pleroma.Web.Plugs.EnsureUserTag, "moderation_tag:account-deactivation")
+  end
+
+  pipeline :require_moderation_tag_account_deletion do
+    plug(:admin_api)
+    plug(Pleroma.Web.Plugs.EnsureUserTag, "moderation_tag:account-deletion")
+  end
+
   pipeline :pleroma_html do
     plug(:browser)
     plug(:authenticate)
@@ -272,12 +307,6 @@ defmodule Pleroma.Web.Router do
     get("/instances/:instance/statuses", InstanceController, :list_statuses)
     delete("/instances/:instance", InstanceController, :delete)
 
-    get("/reports", ReportController, :index)
-    get("/reports/:id", ReportController, :show)
-    patch("/reports", ReportController, :update)
-    post("/reports/:id/notes", ReportController, :notes_create)
-    delete("/reports/:report_id/notes/:id", ReportController, :notes_delete)
-
     get("/statuses/:id", StatusController, :show)
     put("/statuses/:id", StatusController, :update)
     delete("/statuses/:id", StatusController, :delete)
@@ -288,6 +317,53 @@ defmodule Pleroma.Web.Router do
     get("/stats", AdminAPIController, :stats)
 
     delete("/chats/:id/messages/:message_id", ChatController, :delete_message)
+  end
+
+  # AdminAPI: admins and mods (staff) with moderation_tag:report-triage can perform these actions
+  scope "/api/v1/pleroma/admin", Pleroma.Web.AdminAPI do
+    pipe_through(:require_moderation_tag_report_triage)
+
+    get("/reports", ReportController, :index)
+    get("/reports/:id", ReportController, :show)
+    patch("/reports", ReportController, :update)
+    post("/reports/:id/notes", ReportController, :notes_create)
+    delete("/reports/:report_id/notes/:id", ReportController, :notes_delete)
+  end
+
+  # AdminAPI: admins and mods (staff) with moderation_tag:posts-restriction can perform these actions
+  scope "/api/v1/pleroma/admin", Pleroma.Web.AdminAPI do
+    pipe_through(:require_moderation_tag_posts_restriction)
+
+  end
+
+  # AdminAPI: admins and mods (staff) with moderation_tag:post-deletion can perform these actions
+  scope "/api/v1/pleroma/admin", Pleroma.Web.AdminAPI do
+    pipe_through(:require_moderation_tag_post_deletion)
+
+  end
+
+  # AdminAPI: admins and mods (staff) with moderation_tag:post-read-private can perform these actions
+  scope "/api/v1/pleroma/admin", Pleroma.Web.AdminAPI do
+    pipe_through(:require_moderation_tag_post_read_private)
+
+  end
+
+  # AdminAPI: admins and mods (staff) with moderation_tag:account-restriction can perform these actions
+  scope "/api/v1/pleroma/admin", Pleroma.Web.AdminAPI do
+    pipe_through(:require_moderation_tag_account_restriction)
+
+  end
+
+  # AdminAPI: admins and mods (staff) with moderation_tag:account-deactivation can perform these actions
+  scope "/api/v1/pleroma/admin", Pleroma.Web.AdminAPI do
+    pipe_through(:require_moderation_tag_account_deactivation)
+
+  end
+
+  # AdminAPI: admins and mods (staff) with moderation_tag:account-deletion can perform these actions
+  scope "/api/v1/pleroma/admin", Pleroma.Web.AdminAPI do
+    pipe_through(:require_moderation_tag_account_deletion)
+
   end
 
   scope "/api/v1/pleroma/emoji", Pleroma.Web.PleromaAPI do
