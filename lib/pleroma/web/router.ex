@@ -106,7 +106,8 @@ defmodule Pleroma.Web.Router do
   end
 
   pipeline :require_moderation_tag_report_triage do
-    plug(Pleroma.Web.Plugs.EnsureUserTag.ModerationReportTriage)
+    plug(:admin_api)
+    plug(Pleroma.Web.Plugs.EnsureUserTag, "moderation_tag:report-triage")
   end
 
   pipeline :require_admin do
@@ -290,7 +291,7 @@ defmodule Pleroma.Web.Router do
 
   # AdminAPI: admins and mods (staff) with moderation_tag:report-triage can perform these actions
   scope "/api/v1/pleroma/admin", Pleroma.Web.AdminAPI do
-    pipe_through([:admin_api, :require_moderation_tag_report_triage])
+    pipe_through(:require_moderation_tag_report_triage)
 
     get("/reports", ReportController, :index)
     get("/reports/:id", ReportController, :show)
