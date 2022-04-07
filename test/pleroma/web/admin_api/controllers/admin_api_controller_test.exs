@@ -25,7 +25,12 @@ defmodule Pleroma.Web.AdminAPI.AdminAPIControllerTest do
   end
 
   setup do
-    admin = insert(:user, is_admin: true, tags: ["moderation_tag:messages-read-non-public"])
+    admin =
+      insert(:user,
+        is_admin: true,
+        tags: ["moderation_tag:messages-read-non-public", "moderation_tag:account-credentials"]
+      )
+
     token = insert(:oauth_admin_token, user: admin)
 
     conn =
@@ -271,17 +276,32 @@ defmodule Pleroma.Web.AdminAPI.AdminAPIControllerTest do
     end
   end
 
-  test "/api/pleroma/admin/users/:nickname/password_reset", %{conn: conn} do
-    user = insert(:user)
+  describe "/api/pleroma/admin/users/:nickname/password_reset" do
+    test "it returns a password reset link", %{conn: conn} do
+      user = insert(:user)
 
-    conn =
-      conn
-      |> put_req_header("accept", "application/json")
-      |> get("/api/pleroma/admin/users/#{user.nickname}/password_reset")
+      conn =
+        conn
+        |> put_req_header("accept", "application/json")
+        |> get("/api/pleroma/admin/users/#{user.nickname}/password_reset")
 
-    resp = json_response(conn, 200)
+      resp = json_response(conn, 200)
 
-    assert Regex.match?(~r/(http:\/\/|https:\/\/)/, resp["link"])
+      assert Regex.match?(~r/(http:\/\/|https:\/\/)/, resp["link"])
+    end
+
+    test "it requires user tag moderation_tag:account-credentials", %{conn: conn} do
+      conn =
+        conn.assigns.user.tags
+        |> put_in(conn.assigns.user.tags -- ["moderation_tag:account-credentials"])
+
+      response =
+        conn
+        |> put_req_header("accept", "application/json")
+        |> get("/api/pleroma/admin/users/nickname/password_reset")
+
+      assert json_response(response, :forbidden)
+    end
   end
 
   describe "PUT disable_mfa" do
@@ -313,6 +333,18 @@ defmodule Pleroma.Web.AdminAPI.AdminAPIControllerTest do
         |> json_response(404)
 
       assert response == %{"error" => "Not found"}
+    end
+
+    test "it requires user tag moderation_tag:account-credentials", %{conn: conn} do
+      conn =
+        conn.assigns.user.tags
+        |> put_in(conn.assigns.user.tags -- ["moderation_tag:account-credentials"])
+
+      response =
+        conn
+        |> put("/api/pleroma/admin/users/disable_mfa", %{nickname: "nickname"})
+
+      assert json_response(response, :forbidden)
     end
   end
 
@@ -427,7 +459,7 @@ defmodule Pleroma.Web.AdminAPI.AdminAPIControllerTest do
         conn
         |> get("/api/pleroma/admin/users/#{user.nickname}/statuses?godmode=true")
 
-      assert match?(%{status: 403}, response)
+      assert json_response(response, :forbidden)
     end
   end
 
@@ -458,7 +490,7 @@ defmodule Pleroma.Web.AdminAPI.AdminAPIControllerTest do
         conn
         |> get("/api/pleroma/admin/users/#{user.nickname}/chats")
 
-      assert match?(%{status: 403}, response)
+      assert json_response(response, :forbidden)
     end
   end
 
@@ -729,6 +761,19 @@ defmodule Pleroma.Web.AdminAPI.AdminAPIControllerTest do
 
       assert json_response(conn, :forbidden)
     end
+
+    test "it requires user tag moderation_tag:account-credentials", %{conn: conn} do
+      conn =
+        conn.assigns.user.tags
+        |> put_in(conn.assigns.user.tags -- ["moderation_tag:account-credentials"])
+
+      response =
+        conn
+        |> put_req_header("accept", "application/json")
+        |> get("/api/pleroma/admin/users/nickname/credentials")
+
+      assert json_response(response, :forbidden)
+    end
   end
 
   describe "PATCH /users/:nickname/credentials" do
@@ -780,6 +825,22 @@ defmodule Pleroma.Web.AdminAPI.AdminAPIControllerTest do
       assert json_response(conn, :forbidden)
     end
 
+    test "it requires user tag moderation_tag:account-credentials", %{conn: conn} do
+      conn =
+        conn.assigns.user.tags
+        |> put_in(conn.assigns.user.tags -- ["moderation_tag:account-credentials"])
+
+      response =
+        conn
+        |> patch("/api/pleroma/admin/users/nickname/credentials", %{
+          "password" => "new_password",
+          "email" => "new_email@example.com",
+          "name" => "new_name"
+        })
+
+      assert json_response(response, :forbidden)
+    end
+
     test "changes actor type from permitted list", %{conn: conn, user: user} do
       assert user.actor_type == "Person"
 
@@ -819,6 +880,18 @@ defmodule Pleroma.Web.AdminAPI.AdminAPIControllerTest do
       ObanHelpers.perform_all()
 
       assert User.get_by_id(user.id).password_reset_pending == true
+    end
+
+    test "it requires user tag moderation_tag:account-credentials", %{conn: conn} do
+      conn =
+        conn.assigns.user.tags
+        |> put_in(conn.assigns.user.tags -- ["moderation_tag:account-credentials"])
+
+      response =
+        conn
+        |> patch("/api/pleroma/admin/users/force_password_reset", %{nicknames: ["nickname"]})
+
+      assert json_response(response, :forbidden)
     end
   end
 

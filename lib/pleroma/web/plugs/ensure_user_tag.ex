@@ -16,7 +16,7 @@ defmodule Pleroma.Web.Plugs.EnsureUserTag do
     options
   end
 
-  def call(%{assigns: %{user: %User{tags: [_] = tags}}} = conn, required_tag) do
+  def call(%{assigns: %{user: %User{tags: [_ | _] = tags}}} = conn, required_tag) do
     if required_tag in tags do
       conn
     else

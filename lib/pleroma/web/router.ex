@@ -144,6 +144,11 @@ defmodule Pleroma.Web.Router do
     plug(Pleroma.Web.Plugs.EnsureUserTag, "moderation_tag:account-deletion")
   end
 
+  pipeline :require_moderation_tag_account_credentials do
+    plug(:admin_api)
+    plug(Pleroma.Web.Plugs.EnsureUserTag, "moderation_tag:account-credentials")
+  end
+
   pipeline :pleroma_html do
     plug(:browser)
     plug(:authenticate)
@@ -202,8 +207,6 @@ defmodule Pleroma.Web.Router do
   scope "/api/v1/pleroma/admin", Pleroma.Web.AdminAPI do
     pipe_through([:admin_api, :require_admin])
 
-    put("/users/disable_mfa", AdminAPIController, :disable_mfa)
-
     get("/users/:nickname/permission_group", AdminAPIController, :right_get)
     get("/users/:nickname/permission_group/:permission_group", AdminAPIController, :right_get)
 
@@ -233,10 +236,6 @@ defmodule Pleroma.Web.Router do
     get("/relay", RelayController, :index)
     post("/relay", RelayController, :follow)
     delete("/relay", RelayController, :unfollow)
-
-    patch("/users/force_password_reset", AdminAPIController, :force_password_reset)
-    get("/users/:nickname/credentials", AdminAPIController, :show_user_credentials)
-    patch("/users/:nickname/credentials", AdminAPIController, :update_user_credentials)
 
     get("/instance_document/:name", InstanceDocumentController, :show)
     patch("/instance_document/:name", InstanceDocumentController, :update)
@@ -271,9 +270,6 @@ defmodule Pleroma.Web.Router do
     pipe_through([:admin_api, :require_privileged_staff])
 
     delete("/users", UserController, :delete)
-
-    get("/users/:nickname/password_reset", AdminAPIController, :get_password_reset)
-    patch("/users/:nickname/credentials", AdminAPIController, :update_user_credentials)
   end
 
   # AdminAPI: admins and mods (staff) can perform these actions
@@ -364,6 +360,18 @@ defmodule Pleroma.Web.Router do
   # admins and mods (staff) with moderation_tag:account-deletion can perform these actions
   scope "/api/v1/pleroma/admin", Pleroma.Web.AdminAPI do
     pipe_through(:require_moderation_tag_account_deletion)
+  end
+
+  # AdminAPI
+  # admins and mods (staff) with moderation_tag:account-credentials can perform these actions
+  scope "/api/v1/pleroma/admin", Pleroma.Web.AdminAPI do
+    pipe_through(:require_moderation_tag_account_credentials)
+
+    patch("/users/force_password_reset", AdminAPIController, :force_password_reset)
+    put("/users/disable_mfa", AdminAPIController, :disable_mfa)
+    get("/users/:nickname/password_reset", AdminAPIController, :get_password_reset)
+    get("/users/:nickname/credentials", AdminAPIController, :show_user_credentials)
+    patch("/users/:nickname/credentials", AdminAPIController, :update_user_credentials)
   end
 
   scope "/api/v1/pleroma/emoji", Pleroma.Web.PleromaAPI do
