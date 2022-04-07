@@ -101,10 +101,6 @@ defmodule Pleroma.Web.Router do
     plug(Pleroma.Web.Plugs.IdempotencyPlug)
   end
 
-  pipeline :require_privileged_staff do
-    plug(Pleroma.Web.Plugs.EnsureStaffPrivilegedPlug)
-  end
-
   pipeline :require_admin do
     plug(Pleroma.Web.Plugs.UserIsAdminPlug)
   end
@@ -265,13 +261,6 @@ defmodule Pleroma.Web.Router do
     post("/backups", AdminAPIController, :create_backup)
   end
 
-  # AdminAPI: admins and mods (staff) can perform these actions (if enabled by config)
-  scope "/api/v1/pleroma/admin", Pleroma.Web.AdminAPI do
-    pipe_through([:admin_api, :require_privileged_staff])
-
-    delete("/users", UserController, :delete)
-  end
-
   # AdminAPI: admins and mods (staff) can perform these actions
   scope "/api/v1/pleroma/admin", Pleroma.Web.AdminAPI do
     pipe_through(:admin_api)
@@ -360,6 +349,8 @@ defmodule Pleroma.Web.Router do
   # admins and mods (staff) with moderation_tag:account-deletion can perform these actions
   scope "/api/v1/pleroma/admin", Pleroma.Web.AdminAPI do
     pipe_through(:require_moderation_tag_account_deletion)
+
+    delete("/users", UserController, :delete)
   end
 
   # AdminAPI

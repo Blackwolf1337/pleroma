@@ -26,7 +26,12 @@ defmodule Pleroma.Web.AdminAPI.UserControllerTest do
   end
 
   setup do
-    admin = insert(:user, is_admin: true, tags: ["moderation_tag:account-activation"])
+    admin =
+      insert(:user,
+        is_admin: true,
+        tags: ["moderation_tag:account-activation", "moderation_tag:account-deletion"]
+      )
+
     token = insert(:oauth_admin_token, user: admin)
 
     conn =
@@ -167,6 +172,28 @@ defmodule Pleroma.Web.AdminAPI.UserControllerTest do
                "@#{admin.nickname} deleted users: @#{user_one.nickname}, @#{user_two.nickname}"
 
       assert response -- [user_one.nickname, user_two.nickname] == []
+    end
+
+    test "it requires user tag moderation_tag:account-deletion", %{conn: conn} do
+      conn =
+        conn.assigns.user.tags
+        |> put_in(conn.assigns.user.tags -- ["moderation_tag:account-deletion"])
+
+      response_single =
+        conn
+        |> put_req_header("accept", "application/json")
+        |> delete("/api/pleroma/admin/users?nickname=nickname")
+
+      response_multiple =
+        conn
+        |> put_req_header("accept", "application/json")
+        |> put_req_header("content-type", "application/json")
+        |> delete("/api/pleroma/admin/users", %{
+          nicknames: ["user_one", "user_two"]
+        })
+
+      assert json_response(response_single, :forbidden)
+      assert json_response(response_multiple, :forbidden)
     end
   end
 
@@ -848,7 +875,7 @@ defmodule Pleroma.Web.AdminAPI.UserControllerTest do
           %{nicknames: [user_one.nickname, user_two.nickname]}
         )
 
-      assert match?(%{status: 403}, response)
+      assert json_response(response, :forbidden)
     end
   end
 
@@ -893,7 +920,7 @@ defmodule Pleroma.Web.AdminAPI.UserControllerTest do
           %{nicknames: [user_one.nickname, user_two.nickname]}
         )
 
-      assert match?(%{status: 403}, response)
+      assert json_response(response, :forbidden)
     end
   end
 
@@ -1004,7 +1031,7 @@ defmodule Pleroma.Web.AdminAPI.UserControllerTest do
         |> put_req_header("content-type", "application/json")
         |> patch("/api/pleroma/admin/users/#{user.nickname}/toggle_activation")
 
-      assert match?(%{status: 403}, response)
+      assert json_response(response, :forbidden)
     end
   end
 
