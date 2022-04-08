@@ -13,8 +13,8 @@ defmodule Pleroma.Uploaders.IPFS do
   def get_file(file) do
     b_url = Pleroma.Upload.base_url()
 
-    if String.contains?(b_url,"{CID}") do
-      {:ok, {:url, String.replace(b_url,"{CID}", URI.decode(file))}}
+    if String.contains?(b_url, "{CID}") do
+      {:ok, {:url, String.replace(b_url, "{CID}", URI.decode(file))}}
     else
       {:error, "IPFS Get URL doesn't contain '{CID}' placeholder"}
     end
@@ -32,9 +32,8 @@ defmodule Pleroma.Uploaders.IPFS do
 
     final_url = Path.join([post_base_url, "/api/v0/add"])
 
-    case Pleroma.HTTP.post(final_url, mp, [], [params: ["cid-version": "1"]]) do
+    case Pleroma.HTTP.post(final_url, mp, [], params: ["cid-version": "1"]) do
       {:ok, ret} ->
-
         case Jason.decode(ret.body) do
           {:ok, ret} ->
             {:ok, {:file, ret["Hash"]}}
@@ -56,7 +55,8 @@ defmodule Pleroma.Uploaders.IPFS do
     post_base_url = Keyword.get(config, :post_gateway_url)
 
     final_url = Path.join([post_base_url, "/api/v0/files/rm"])
-    case Pleroma.HTTP.post(final_url, "", [], [params: [arg: file]]) do
+
+    case Pleroma.HTTP.post(final_url, "", [], params: [arg: file]) do
       {:ok, %{status_code: 204}} -> :ok
       error -> {:error, inspect(error)}
     end
