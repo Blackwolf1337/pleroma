@@ -148,7 +148,7 @@ config :pleroma, :config_description, [
         description: "GET Gateway URL",
         suggestions: [
           "https://ipfs.mydomain.com/<%= cid %>",
-          "https://<%= cid %>.ipfs.mydomain.com/",
+          "https://<%= cid %>.ipfs.mydomain.com/"
         ]
       },
       %{
