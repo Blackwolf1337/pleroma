@@ -105,6 +105,11 @@ defmodule Pleroma.Web.Router do
     plug(Pleroma.Web.Plugs.UserIsAdminPlug)
   end
 
+  pipeline :require_moderation_tag_account_invitation do
+    plug(:admin_api)
+    plug(Pleroma.Web.Plugs.EnsureUserTag, "moderation_tag:account-invitation")
+  end
+
   pipeline :require_moderation_tag_report_triage do
     plug(:admin_api)
     plug(Pleroma.Web.Plugs.EnsureUserTag, "moderation_tag:report-triage")
@@ -262,9 +267,10 @@ defmodule Pleroma.Web.Router do
     post("/backups", AdminAPIController, :create_backup)
   end
 
-  # AdminAPI: admins and mods (staff) can perform these actions
+  # AdminAPI
+  # admins and mods (staff) with moderation_tag:account-invitation can perform these actions
   scope "/api/v1/pleroma/admin", Pleroma.Web.AdminAPI do
-    pipe_through(:admin_api)
+    pipe_through(:require_moderation_tag_account_invitation)
 
     patch("/users/approve", UserController, :approve)
 
@@ -272,23 +278,6 @@ defmodule Pleroma.Web.Router do
     get("/users/invites", InviteController, :index)
     post("/users/revoke_invite", InviteController, :revoke)
     post("/users/email_invite", InviteController, :email)
-
-    get("/users", UserController, :index)
-    get("/users/:nickname", UserController, :show)
-
-    get("/instances/:instance/statuses", InstanceController, :list_statuses)
-    delete("/instances/:instance", InstanceController, :delete)
-
-    get("/statuses/:id", StatusController, :show)
-    put("/statuses/:id", StatusController, :update)
-    delete("/statuses/:id", StatusController, :delete)
-
-    get("/moderation_log", AdminAPIController, :list_log)
-
-    post("/reload_emoji", AdminAPIController, :reload_emoji)
-    get("/stats", AdminAPIController, :stats)
-
-    delete("/chats/:id/messages/:message_id", ChatController, :delete_message)
   end
 
   # AdminAPI
@@ -401,6 +390,28 @@ defmodule Pleroma.Web.Router do
       get("/", EmojiPackController, :index)
       get("/archive", EmojiPackController, :archive)
     end
+  end
+
+  # AdminAPI: admins and mods (staff) can perform these actions
+  scope "/api/v1/pleroma/admin", Pleroma.Web.AdminAPI do
+    pipe_through(:admin_api)
+
+    get("/users", UserController, :index)
+    get("/users/:nickname", UserController, :show)
+
+    get("/instances/:instance/statuses", InstanceController, :list_statuses)
+    delete("/instances/:instance", InstanceController, :delete)
+
+    get("/statuses/:id", StatusController, :show)
+    put("/statuses/:id", StatusController, :update)
+    delete("/statuses/:id", StatusController, :delete)
+
+    get("/moderation_log", AdminAPIController, :list_log)
+
+    post("/reload_emoji", AdminAPIController, :reload_emoji)
+    get("/stats", AdminAPIController, :stats)
+
+    delete("/chats/:id/messages/:message_id", ChatController, :delete_message)
   end
 
   scope "/", Pleroma.Web.TwitterAPI do

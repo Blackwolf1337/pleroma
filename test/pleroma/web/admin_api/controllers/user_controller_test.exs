@@ -29,7 +29,11 @@ defmodule Pleroma.Web.AdminAPI.UserControllerTest do
     admin =
       insert(:user,
         is_admin: true,
-        tags: ["moderation_tag:account-activation", "moderation_tag:account-deletion"]
+        tags: [
+          "moderation_tag:account-activation",
+          "moderation_tag:account-deletion",
+          "moderation_tag:account-invitation"
+        ]
       )
 
     token = insert(:oauth_admin_token, user: admin)
@@ -924,25 +928,46 @@ defmodule Pleroma.Web.AdminAPI.UserControllerTest do
     end
   end
 
-  test "PATCH /api/pleroma/admin/users/approve", %{admin: admin, conn: conn} do
-    user_one = insert(:user, is_approved: false)
-    user_two = insert(:user, is_approved: false)
+  describe "PATCH /api/pleroma/admin/users/approve" do
+    test "it approves users and logs an entry in the moderation log", %{admin: admin, conn: conn} do
+      user_one = insert(:user, is_approved: false)
+      user_two = insert(:user, is_approved: false)
 
-    conn =
-      conn
-      |> put_req_header("content-type", "application/json")
-      |> patch(
-        "/api/pleroma/admin/users/approve",
-        %{nicknames: [user_one.nickname, user_two.nickname]}
-      )
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> patch(
+          "/api/pleroma/admin/users/approve",
+          %{nicknames: [user_one.nickname, user_two.nickname]}
+        )
 
-    response = json_response_and_validate_schema(conn, 200)
-    assert Enum.map(response["users"], & &1["is_approved"]) == [true, true]
+      response = json_response_and_validate_schema(conn, 200)
+      assert Enum.map(response["users"], & &1["is_approved"]) == [true, true]
 
-    log_entry = Repo.one(ModerationLog)
+      log_entry = Repo.one(ModerationLog)
 
-    assert ModerationLog.get_log_entry_message(log_entry) ==
-             "@#{admin.nickname} approved users: @#{user_one.nickname}, @#{user_two.nickname}"
+      assert ModerationLog.get_log_entry_message(log_entry) ==
+               "@#{admin.nickname} approved users: @#{user_one.nickname}, @#{user_two.nickname}"
+    end
+
+    test "it requires user tag moderation_tag:account-invitation", %{conn: conn} do
+      conn =
+        conn.assigns.user.tags
+        |> put_in(conn.assigns.user.tags -- ["moderation_tag:account-invitation"])
+
+      user_one = insert(:user, is_approved: false)
+      user_two = insert(:user, is_approved: false)
+
+      response =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> patch(
+          "/api/pleroma/admin/users/approve",
+          %{nicknames: [user_one.nickname, user_two.nickname]}
+        )
+
+      assert json_response(response, :forbidden)
+    end
   end
 
   test "PATCH /api/pleroma/admin/users/suggest", %{admin: admin, conn: conn} do

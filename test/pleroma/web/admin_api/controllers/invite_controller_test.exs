@@ -11,7 +11,7 @@ defmodule Pleroma.Web.AdminAPI.InviteControllerTest do
   alias Pleroma.UserInviteToken
 
   setup do
-    admin = insert(:user, is_admin: true)
+    admin = insert(:user, is_admin: true, tags: ["moderation_tag:account-invitation"])
     token = insert(:oauth_admin_token, user: admin)
 
     conn =
@@ -74,6 +74,25 @@ defmodule Pleroma.Web.AdminAPI.InviteControllerTest do
         |> post("/api/pleroma/admin/users/email_invite", %{
           email: "foo@bar.com",
           name: "JD"
+        })
+
+      assert json_response(conn, :forbidden)
+    end
+
+    test "it requires user tag moderation_tag:account-invitation", %{conn: conn} do
+      recipient_email = "foo@bar.com"
+      recipient_name = "J. D."
+
+      conn =
+        conn.assigns.user.tags
+        |> put_in(conn.assigns.user.tags -- ["moderation_tag:account-invitation"])
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json;charset=utf-8")
+        |> post("/api/pleroma/admin/users/email_invite", %{
+          email: recipient_email,
+          name: recipient_name
         })
 
       assert json_response(conn, :forbidden)
@@ -218,6 +237,19 @@ defmodule Pleroma.Web.AdminAPI.InviteControllerTest do
       assert invite.max_use == 150
       assert invite.invite_type == "reusable_date_limited"
     end
+
+    test "it requires user tag moderation_tag:account-invitation", %{conn: conn} do
+      conn =
+        conn.assigns.user.tags
+        |> put_in(conn.assigns.user.tags -- ["moderation_tag:account-invitation"])
+
+      response =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/pleroma/admin/users/invite_token")
+
+      assert json_response(response, :forbidden)
+    end
   end
 
   describe "GET /api/pleroma/admin/users/invites" do
@@ -245,6 +277,16 @@ defmodule Pleroma.Web.AdminAPI.InviteControllerTest do
                  }
                ]
              }
+    end
+
+    test "it requires user tag moderation_tag:account-invitation", %{conn: conn} do
+      conn =
+        conn.assigns.user.tags
+        |> put_in(conn.assigns.user.tags -- ["moderation_tag:account-invitation"])
+
+      response = get(conn, "/api/pleroma/admin/users/invites")
+
+      assert json_response(response, :forbidden)
     end
   end
 
@@ -275,6 +317,19 @@ defmodule Pleroma.Web.AdminAPI.InviteControllerTest do
         |> post("/api/pleroma/admin/users/revoke_invite", %{"token" => "foo"})
 
       assert json_response_and_validate_schema(conn, :not_found) == %{"error" => "Not found"}
+    end
+
+    test "it requires user tag moderation_tag:account-invitation", %{conn: conn} do
+      conn =
+        conn.assigns.user.tags
+        |> put_in(conn.assigns.user.tags -- ["moderation_tag:account-invitation"])
+
+      response =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/pleroma/admin/users/revoke_invite", %{"token" => "foo"})
+
+      assert json_response(response, :forbidden)
     end
   end
 end
