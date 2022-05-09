@@ -76,7 +76,6 @@ defmodule Pleroma.Uploaders.IPFSTest do
                "{\"Name\":\"image-tet.jpg\",\"Size\":\"5000\", \"Hash\":\"bafybeicrh7ltzx52yxcwrvxxckfmwhqdgsb6qym6dxqm2a4ymsakeshwoi\"}"
            }}
         end do
-
         assert IPFS.put_file(file_upload) ==
                  {:ok, {:file, "bafybeicrh7ltzx52yxcwrvxxckfmwhqdgsb6qym6dxqm2a4ymsakeshwoi"}}
       end
