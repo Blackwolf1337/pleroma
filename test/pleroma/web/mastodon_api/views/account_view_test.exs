@@ -79,6 +79,7 @@ defmodule Pleroma.Web.MastodonAPI.AccountViewTest do
         ap_id: user.ap_id,
         also_known_as: ["https://shitposter.zone/users/shp"],
         background_image: "https://example.com/images/asuka_hospital.png",
+        deactivated: false,
         favicon: nil,
         is_confirmed: true,
         tags: [],
@@ -180,6 +181,7 @@ defmodule Pleroma.Web.MastodonAPI.AccountViewTest do
       pleroma: %{
         ap_id: user.ap_id,
         also_known_as: [],
+        deactivated: false,
         background_image: nil,
         favicon: nil,
         is_confirmed: true,
