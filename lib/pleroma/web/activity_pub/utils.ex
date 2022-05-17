@@ -130,8 +130,8 @@ defmodule Pleroma.Web.ActivityPub.Utils do
 
     Map.keys(table)
     |> Enum.reduce(%{}, fn key, acc ->
-      full = table[key]
-      Map.put(acc, full, Map.get(acc, full, []) ++ [key])
+      [full | short_forms] = table[key]
+      Map.put(acc, full, Map.get(acc, full, []) ++ [key, full | short_forms])
     end)
   end
 
@@ -157,15 +157,22 @@ defmodule Pleroma.Web.ActivityPub.Utils do
 
         expanded =
           if length(parts) == 1 do
-            definition
+            definition_string
           else
             [scheme, rest] = parts
             scheme_def = Map.get(acc, scheme, Map.get(context, scheme, scheme <> ":"))
             scheme_def <> rest
           end
 
-        Map.put(acc, key, expanded)
-      end)
+        # Expand it one time only
+        # for example, {"pleroma": pleroma_ns(), "xxx": "pleroma:xxx"}
+        # is turned into: ("xxx") => ["pleroma:xxx", pleroma_ns() <> "xxx"]
+        if definition_string == expanded do
+          Map.put(acc, key, [expanded])
+        else
+          Map.put(acc, key, [expanded, definition_string])
+        end
+     end)
 
     parse_json_ld_context_impl(tail, next)
   end
@@ -183,7 +190,7 @@ defmodule Pleroma.Web.ActivityPub.Utils do
   end
 
   def lookup_json_ld_key(object, context, key) do
-    attr_names = Map.get(context, key)
+    attr_names = Map.get(context, key, [key])
 
     if is_nil(attr_names) do
       {:not_found, nil}
