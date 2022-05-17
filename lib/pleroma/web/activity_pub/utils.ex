@@ -119,6 +119,63 @@ defmodule Pleroma.Web.ActivityPub.Utils do
     }
   end
 
+  def parse_json_ld_context(object) do
+    table = parse_json_ld_context_impl(Map.get(object, "@context", []), %{})
+
+    Map.keys(table)
+    |> Enum.reduce(%{}, fn key, acc ->
+      full = table[key]
+      Map.put(acc, full, Map.get(acc, full, []) ++ [key])
+    end)
+  end
+
+  defp parse_json_ld_context_impl([context | tail], acc) when is_map(context) do
+    next =
+      Map.keys(context)
+      |> Enum.reduce(acc, fn key, acc ->
+        definition =
+          if is_map(context[key]) do
+            Map.get(context[key], "@id", "")
+          else
+            context[key]
+          end
+
+        definition_string =
+          if is_binary(definition) do
+            definition
+          else
+            ""
+          end
+
+        parts = String.split(definition_string, ":", parts: 2)
+
+        expanded =
+          if length(parts) == 1 do
+            definition
+          else
+            [scheme, rest] = parts
+            scheme_def = Map.get(acc, scheme, Map.get(context, scheme, scheme <> ":"))
+            scheme_def <> rest
+          end
+
+        Map.put(acc, key, expanded)
+      end)
+
+    parse_json_ld_context_impl(tail, next)
+  end
+
+  defp parse_json_ld_context_impl([_ | tail], acc) do
+    parse_json_ld_context_impl(tail, acc)
+  end
+
+  defp parse_json_ld_context_impl([], acc) do
+    acc
+  end
+
+  defp parse_json_ld_context_impl(context, acc) do
+    parse_json_ld_context_impl([context], acc)
+  end
+
   def make_date do
     DateTime.utc_now() |> DateTime.to_iso8601()
   end

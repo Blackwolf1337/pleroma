@@ -559,4 +559,34 @@ defmodule Pleroma.Web.ActivityPub.UtilsTest do
       assert Utils.get_cached_emoji_reactions(object) == []
     end
   end
+
+  describe "parse_json_ld_context/1" do
+    test "it expands IRI schemes" do
+      object = %{
+        "@context" => [
+          "https://www.w3.org/ns/activitystreams",
+          "https://w3id.org/security/v1",
+          %{
+            "manuallyApprovesFollowers" => "as:manuallyApprovesFollowers",
+            "toot" => "http://joinmastodon.org/ns#",
+            "featured" => %{"@id" => "toot:featured", "@type" => "@id"},
+            "schema" => "http://schema.org#",
+            "PropertyValue" => "schema:PropertyValue",
+            "misskey" => "https://misskey-hub.net/ns#",
+            "isCat" => "misskey:isCat"
+          }
+        ]
+      }
+
+      assert Utils.parse_json_ld_context(object) == %{
+               "as:manuallyApprovesFollowers" => ["manuallyApprovesFollowers"],
+               "http://joinmastodon.org/ns#" => ["toot"],
+               "http://joinmastodon.org/ns#featured" => ["featured"],
+               "http://schema.org#" => ["schema"],
+               "http://schema.org#PropertyValue" => ["PropertyValue"],
+               "https://misskey-hub.net/ns#" => ["misskey"],
+               "https://misskey-hub.net/ns#isCat" => ["isCat"]
+             }
+    end
+  end
 end
