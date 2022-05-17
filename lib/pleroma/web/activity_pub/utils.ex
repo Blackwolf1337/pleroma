@@ -107,13 +107,19 @@ defmodule Pleroma.Web.ActivityPub.Utils do
     end
   end
 
+  def pleroma_ns do
+    "https://docs-develop.pleroma.social/backend/ns#"
+  end
+
   def make_json_ld_header do
     %{
       "@context" => [
         "https://www.w3.org/ns/activitystreams",
         "#{Endpoint.url()}/schemas/litepub-0.1.jsonld",
         %{
-          "@language" => "und"
+          "@language" => "und",
+          "pleroma" => pleroma_ns(),
+          "avatarStyle" => "pleroma:avatarStyle"
         }
       ]
     }
@@ -191,6 +197,20 @@ defmodule Pleroma.Web.ActivityPub.Utils do
         end
       end)
     end
+  end
+
+  def inject_json_ld_context(matrix_object, embedded_object) do
+    to_list_like = fn
+      list when is_list(list) -> list
+      atom -> [atom]
+    end
+
+    merged_json_ld_context =
+      to_list_like.(Map.get(matrix_object, "@context", [])) ++
+        to_list_like.(Map.get(embedded_object, "@context", []))
+
+    embedded_object
+    |> Map.put("@context", merged_json_ld_context)
   end
 
   def make_date do

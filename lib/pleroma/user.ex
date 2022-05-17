@@ -476,7 +476,8 @@ defmodule Pleroma.User do
         :accepts_chat_messages,
         :pinned_objects,
         :birthday,
-        :show_birthday
+        :show_birthday,
+        :avatar_style
       ]
     )
     |> cast(params, [:name], empty_values: [])
