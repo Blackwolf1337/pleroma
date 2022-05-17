@@ -742,6 +742,11 @@ defmodule Pleroma.Web.ApiSpec.AccountOperation do
           allOf: [BooleanLike],
           nullable: true,
           description: "User's birthday will be visible"
+        },
+        avatar_style: %Schema{
+          type: :string,
+          nullable: true,
+          description: "User's avatar style"
         }
       },
       example: %{
@@ -764,7 +769,8 @@ defmodule Pleroma.Web.ApiSpec.AccountOperation do
         discoverable: false,
         actor_type: "Person",
         show_birthday: false,
-        birthday: "2001-02-12"
+        birthday: "2001-02-12",
+        avatar_style: "foo"
       }
     }
   end
