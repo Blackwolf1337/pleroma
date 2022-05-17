@@ -176,6 +176,23 @@ defmodule Pleroma.Web.ActivityPub.Utils do
     parse_json_ld_context_impl([context], acc)
   end
 
+  def lookup_json_ld_key(object, context, key) do
+    attr_names = Map.get(context, key)
+
+    if is_nil(attr_names) do
+      {:not_found, nil}
+    else
+      attr_names
+      |> Enum.reduce_while({:not_found, nil}, fn name, _acc ->
+        if Map.has_key?(object, name) do
+          {:halt, {:ok, Map.get(object, name)}}
+        else
+          {:cont, {:not_found, nil}}
+        end
+      end)
+    end
+  end
+
   def make_date do
     DateTime.utc_now() |> DateTime.to_iso8601()
   end

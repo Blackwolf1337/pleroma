@@ -589,4 +589,40 @@ defmodule Pleroma.Web.ActivityPub.UtilsTest do
              }
     end
   end
+
+  describe "lookup_json_ld_key/3" do
+    test "it gets the correct value" do
+      object = %{
+        "@context" => [
+          "https://www.w3.org/ns/activitystreams",
+          "https://w3id.org/security/v1",
+          %{
+            "manuallyApprovesFollowers" => "as:manuallyApprovesFollowers",
+            "toot" => "http://joinmastodon.org/ns#",
+            "featured" => %{"@id" => "toot:featured", "@type" => "@id"},
+            "schema" => "http://schema.org#",
+            "PropertyValue" => "schema:PropertyValue",
+            "misskey" => "https://misskey-hub.net/ns#",
+            "isCat" => "misskey:isCat"
+          }
+        ],
+        "featured" => "https://example.com/featured",
+        "isCat" => true
+      }
+
+      context = Utils.parse_json_ld_context(object)
+
+      assert {:ok, "https://example.com/featured"} =
+               Utils.lookup_json_ld_key(object, context, "http://joinmastodon.org/ns#featured")
+
+      assert {:ok, true} =
+               Utils.lookup_json_ld_key(object, context, "https://misskey-hub.net/ns#isCat")
+
+      assert {:not_found, nil} =
+               Utils.lookup_json_ld_key(object, context, "https://misskey-hub.net/ns#random")
+
+      assert {:not_found, nil} =
+               Utils.lookup_json_ld_key(object, context, "http://schema.org#PropertyValue")
+    end
+  end
 end
