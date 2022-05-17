@@ -186,6 +186,28 @@ defmodule Pleroma.Web.ActivityPub.SideEffectsTest do
 
       assert user.avatar_style == "foo"
     end
+
+    test "it removes avatar_style" do
+      user = insert(:user, %{local: false, avatar_style: "foo"})
+
+      assert user.avatar_style == "foo"
+
+      {:ok, update_data, []} =
+        Builder.update(
+          user,
+          %{
+            "id" => user.ap_id,
+            "name" => "new name"
+          }
+        )
+
+      {:ok, update, _meta} = ActivityPub.persist(update_data, local: true)
+
+      {:ok, _, _} = SideEffects.handle(update)
+      user = User.get_by_id(user.id)
+
+      assert user.avatar_style == nil
+    end
   end
 
   describe "EmojiReact objects" do
