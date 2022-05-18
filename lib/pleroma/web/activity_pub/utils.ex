@@ -172,7 +172,7 @@ defmodule Pleroma.Web.ActivityPub.Utils do
         else
           Map.put(acc, key, [expanded, definition_string])
         end
-     end)
+      end)
 
     parse_json_ld_context_impl(tail, next)
   end

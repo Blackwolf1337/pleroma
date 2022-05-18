@@ -581,13 +581,28 @@ defmodule Pleroma.Web.ActivityPub.UtilsTest do
       }
 
       assert Utils.parse_json_ld_context(object) == %{
-               "as:manuallyApprovesFollowers" => ["manuallyApprovesFollowers", "as:manuallyApprovesFollowers"],
+               "as:manuallyApprovesFollowers" => [
+                 "manuallyApprovesFollowers",
+                 "as:manuallyApprovesFollowers"
+               ],
                "http://joinmastodon.org/ns#" => ["toot", "http://joinmastodon.org/ns#"],
-               "http://joinmastodon.org/ns#featured" => ["featured", "http://joinmastodon.org/ns#featured", "toot:featured"],
+               "http://joinmastodon.org/ns#featured" => [
+                 "featured",
+                 "http://joinmastodon.org/ns#featured",
+                 "toot:featured"
+               ],
                "http://schema.org#" => ["schema", "http://schema.org#"],
-               "http://schema.org#PropertyValue" => ["PropertyValue", "http://schema.org#PropertyValue", "schema:PropertyValue"],
+               "http://schema.org#PropertyValue" => [
+                 "PropertyValue",
+                 "http://schema.org#PropertyValue",
+                 "schema:PropertyValue"
+               ],
                "https://misskey-hub.net/ns#" => ["misskey", "https://misskey-hub.net/ns#"],
-               "https://misskey-hub.net/ns#isCat" => ["isCat", "https://misskey-hub.net/ns#isCat", "misskey:isCat"]
+               "https://misskey-hub.net/ns#isCat" => [
+                 "isCat",
+                 "https://misskey-hub.net/ns#isCat",
+                 "misskey:isCat"
+               ]
              }
     end
   end
@@ -634,7 +649,7 @@ defmodule Pleroma.Web.ActivityPub.UtilsTest do
           "https://w3id.org/security/v1",
           %{
             "toot" => "http://joinmastodon.org/ns#",
-            "featured" => %{"@id" => "toot:featured", "@type" => "@id"},
+            "featured" => %{"@id" => "toot:featured", "@type" => "@id"}
           }
         ]
       }
@@ -642,13 +657,25 @@ defmodule Pleroma.Web.ActivityPub.UtilsTest do
       context = Utils.parse_json_ld_context(object)
 
       assert {:ok, "https://example.com/featured"} =
-               Utils.lookup_json_ld_key(%{"featured" => "https://example.com/featured"}, context, "http://joinmastodon.org/ns#featured")
+               Utils.lookup_json_ld_key(
+                 %{"featured" => "https://example.com/featured"},
+                 context,
+                 "http://joinmastodon.org/ns#featured"
+               )
 
       assert {:ok, "https://example.com/featured"} =
-               Utils.lookup_json_ld_key(%{"toot:featured" => "https://example.com/featured"}, context, "http://joinmastodon.org/ns#featured")
+               Utils.lookup_json_ld_key(
+                 %{"toot:featured" => "https://example.com/featured"},
+                 context,
+                 "http://joinmastodon.org/ns#featured"
+               )
 
       assert {:ok, "https://example.com/featured"} =
-               Utils.lookup_json_ld_key(%{"http://joinmastodon.org/ns#featured" => "https://example.com/featured"}, context, "http://joinmastodon.org/ns#featured")
+               Utils.lookup_json_ld_key(
+                 %{"http://joinmastodon.org/ns#featured" => "https://example.com/featured"},
+                 context,
+                 "http://joinmastodon.org/ns#featured"
+               )
     end
 
     test "it works with full names and do not need a context" do
@@ -659,7 +686,11 @@ defmodule Pleroma.Web.ActivityPub.UtilsTest do
       context = Utils.parse_json_ld_context(object)
 
       assert {:ok, "https://example.com/featured"} =
-               Utils.lookup_json_ld_key(%{"http://joinmastodon.org/ns#featured" => "https://example.com/featured"}, context, "http://joinmastodon.org/ns#featured")
+               Utils.lookup_json_ld_key(
+                 %{"http://joinmastodon.org/ns#featured" => "https://example.com/featured"},
+                 context,
+                 "http://joinmastodon.org/ns#featured"
+               )
     end
   end
 end

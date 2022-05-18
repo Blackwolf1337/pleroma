@@ -14,19 +14,23 @@ defmodule Pleroma.Web.ActivityPub.MRF.ActorAvatarStylePolicyTest do
     test "with Update activity" do
       actor = insert(:user, %{local: false})
 
-      {:ok, message, _} = Builder.update(
-        actor,
-        %{
-          "id" => actor.ap_id,
-          "type" => "Person",
-          "name" => "some name",
-          "isCat" => true
-        })
+      {:ok, message, _} =
+        Builder.update(
+          actor,
+          %{
+            "id" => actor.ap_id,
+            "type" => "Person",
+            "name" => "some name",
+            "isCat" => true
+          }
+        )
 
       assert {:ok, filtered} = ActorAvatarStylePolicy.filter(message)
 
       context = Utils.parse_json_ld_context(filtered)
-      {:ok, avatar_style} = Utils.lookup_json_ld_key(filtered["object"], context, Utils.pleroma_ns() <> "avatarStyle")
+
+      {:ok, avatar_style} =
+        Utils.lookup_json_ld_key(filtered["object"], context, Utils.pleroma_ns() <> "avatarStyle")
 
       assert avatar_style == "🐈"
     end
@@ -44,7 +48,9 @@ defmodule Pleroma.Web.ActivityPub.MRF.ActorAvatarStylePolicyTest do
       assert {:ok, filtered} = ActorAvatarStylePolicy.filter(message)
 
       context = Utils.parse_json_ld_context(filtered)
-      {:ok, avatar_style} = Utils.lookup_json_ld_key(filtered, context, Utils.pleroma_ns() <> "avatarStyle")
+
+      {:ok, avatar_style} =
+        Utils.lookup_json_ld_key(filtered, context, Utils.pleroma_ns() <> "avatarStyle")
 
       assert avatar_style == "🐈"
     end
