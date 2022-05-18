@@ -136,23 +136,25 @@ defmodule Pleroma.Web.ActivityPub.Utils do
   end
 
   defp parse_json_ld_context_impl([context | tail], acc) when is_map(context) do
+    get_definition = fn value ->
+      maybe_string =
+        if is_map(value) do
+          Map.get(value, "@id", "")
+        else
+          value
+        end
+
+      if is_binary(maybe_string) do
+        maybe_string
+      else
+        ""
+      end
+    end
+
     next =
       Map.keys(context)
       |> Enum.reduce(acc, fn key, acc ->
-        definition =
-          if is_map(context[key]) do
-            Map.get(context[key], "@id", "")
-          else
-            context[key]
-          end
-
-        definition_string =
-          if is_binary(definition) do
-            definition
-          else
-            ""
-          end
-
+        definition_string = get_definition.(context[key])
         parts = String.split(definition_string, ":", parts: 2)
 
         expanded =
@@ -160,7 +162,15 @@ defmodule Pleroma.Web.ActivityPub.Utils do
             definition_string
           else
             [scheme, rest] = parts
-            scheme_def = Map.get(acc, scheme, Map.get(context, scheme, scheme <> ":"))
+            scheme_defs = Map.get(acc, scheme, [])
+
+            scheme_def =
+              if scheme_defs == [] do
+                get_definition.(Map.get(context, scheme, scheme <> ":"))
+              else
+                Enum.at(scheme_defs, 0)
+              end
+
             scheme_def <> rest
           end
 
