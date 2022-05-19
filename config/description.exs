@@ -444,7 +444,6 @@ config :pleroma, :config_description, [
           "http",
           "dat",
           "dweb",
-          "gopher",
           "hyper",
           "ipfs",
           "ipns",
@@ -1658,38 +1657,6 @@ config :pleroma, :config_description, [
         description:
           "Optional URL format preprocessing. Only required for Apache's htcacheclean.",
         suggestions: [":htcacheclean"]
-      }
-    ]
-  },
-  %{
-    group: :pleroma,
-    key: :gopher,
-    type: :group,
-    description: "Gopher settings",
-    children: [
-      %{
-        key: :enabled,
-        type: :boolean,
-        description: "Enables the gopher interface"
-      },
-      %{
-        key: :ip,
-        label: "IP",
-        type: :tuple,
-        description: "IP address to bind to",
-        suggestions: [{0, 0, 0, 0}]
-      },
-      %{
-        key: :port,
-        type: :integer,
-        description: "Port to bind to",
-        suggestions: [9999]
-      },
-      %{
-        key: :dstport,
-        type: :integer,
-        description: "Port advertised in URLs (optional, defaults to port)",
-        suggestions: [9999]
       }
     ]
   },
