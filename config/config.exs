@@ -97,7 +97,6 @@ config :pleroma, :uri_schemes,
     "http",
     "dat",
     "dweb",
-    "gopher",
     "hyper",
     "ipfs",
     "ipns",
@@ -471,11 +470,6 @@ config :phoenix, :json_library, Jason
 
 config :phoenix, :filter_parameters, ["password", "confirm"]
 
-config :pleroma, :gopher,
-  enabled: false,
-  ip: {0, 0, 0, 0},
-  port: 9999
-
 config :pleroma, Pleroma.Web.Metadata,
   providers: [
     Pleroma.Web.Metadata.Providers.OpenGraph,
@@ -603,9 +597,6 @@ config :pleroma, :ldap,
   tlsopts: [],
   base: System.get_env("LDAP_BASE") || "dc=example,dc=com",
   uid: System.get_env("LDAP_UID") || "cn"
-
-config :esshd,
-  enabled: false
 
 oauth_consumer_strategies =
   System.get_env("OAUTH_CONSUMER_STRATEGIES")
