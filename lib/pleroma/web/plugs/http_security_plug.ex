@@ -76,11 +76,11 @@ defmodule Pleroma.Web.Plugs.HTTPSecurityPlug do
 
   static_csp_rules = [
     "default-src 'none'",
-    "base-uri 'self'",
+    "base-uri 'self' https://*.initiate.space https://initiate.space",
     "frame-ancestors 'none'",
-    "style-src 'self' 'unsafe-inline'",
-    "font-src 'self'",
-    "manifest-src 'self'"
+    "style-src 'self' 'unsafe-inline' https://*.initiate.space https://initiate.space",
+    "font-src 'self' https://*.initiate.space https://initiate.space",
+    "manifest-src 'self' https://*.initiate.space https://initiate.space"
   ]
 
   @csp_start [Enum.join(static_csp_rules, ";") <> ";"]
@@ -91,8 +91,8 @@ defmodule Pleroma.Web.Plugs.HTTPSecurityPlug do
     websocket_url = Pleroma.Web.Endpoint.websocket_url()
     report_uri = Config.get([:http_security, :report_uri])
 
-    img_src = "img-src 'self' data: blob:"
-    media_src = "media-src 'self'"
+    img_src = "img-src 'self' data: blob: https://*.initiate.space https://initiate.space"
+    media_src = "media-src 'self' https://*.initiate.space https://initiate.space"
 
     # Strict multimedia CSP enforcement only when MediaProxy is enabled
     {img_src, media_src} =
@@ -104,7 +104,7 @@ defmodule Pleroma.Web.Plugs.HTTPSecurityPlug do
         {[img_src, " https:"], [media_src, " https:"]}
       end
 
-    connect_src = ["connect-src 'self' blob: ", static_url, ?\s, websocket_url]
+    connect_src = ["connect-src 'self' blob: https://*.initiate.space https://initiate.space ", static_url, ?\s, websocket_url]
 
     connect_src =
       if Config.get(:env) == :dev do
@@ -117,7 +117,7 @@ defmodule Pleroma.Web.Plugs.HTTPSecurityPlug do
       if Config.get(:env) == :dev do
         "script-src 'self' 'unsafe-eval'"
       else
-        "script-src 'self' 'wasm-unsafe-eval'"
+        "script-src 'self' 'wasm-unsafe-eval' https://*.initiate.space https://initiate.space"
       end
 
     report = if report_uri, do: ["report-uri ", report_uri, ";report-to csp-endpoint"]
