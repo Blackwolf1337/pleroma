@@ -1,10 +1,8 @@
 {
     "files": {
-        "blank": "blank.png",
-        "blank2": "blank2.png"
+        "blank5": "blank5.png"
     },
     "pack": {
-        "display-name": "Test display name",
         "description": "Test description",
         "homepage": "https://pleroma.social",
         "license": "Test license",

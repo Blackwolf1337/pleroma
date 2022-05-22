@@ -1,5 +1,6 @@
 {
     "pack": {
+        "display-name": "Test display name",
         "license": "Test license",
         "homepage": "https://pleroma.social",
         "description": "Test description",

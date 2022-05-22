@@ -248,6 +248,7 @@ defmodule Pleroma.Web.ApiSpec.PleromaEmojiPackOperation do
         pack: %Schema{
           type: :object,
           properties: %{
+            "display-name": %Schema{type: :string},
             license: %Schema{type: :string},
             homepage: %Schema{type: :string, format: :uri},
             description: %Schema{type: :string},
@@ -260,6 +261,7 @@ defmodule Pleroma.Web.ApiSpec.PleromaEmojiPackOperation do
       example: %{
         "files" => %{"emacs" => "emacs.png", "guix" => "guix.png"},
         "pack" => %{
+          "display-name" => "Test display name",
           "license" => "Test license",
           "homepage" => "https://pleroma.social",
           "description" => "Test description",
@@ -287,6 +289,7 @@ defmodule Pleroma.Web.ApiSpec.PleromaEmojiPackOperation do
           type: :object,
           description: "Metadata to replace the old one",
           properties: %{
+            "display-name": %Schema{type: :string},
             license: %Schema{type: :string},
             homepage: %Schema{type: :string, format: :uri},
             description: %Schema{type: :string},
@@ -310,6 +313,7 @@ defmodule Pleroma.Web.ApiSpec.PleromaEmojiPackOperation do
     %Schema{
       type: :object,
       properties: %{
+        "display-name": %Schema{type: :string},
         license: %Schema{type: :string},
         homepage: %Schema{type: :string, format: :uri},
         description: %Schema{type: :string},

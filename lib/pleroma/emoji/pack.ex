@@ -275,10 +275,15 @@ defmodule Pleroma.Emoji.Pack do
   @spec update_metadata(String.t(), map()) :: {:ok, t()} | {:error, File.posix()}
   def update_metadata(name, data) do
     with {:ok, pack} <- load_pack(name) do
-      if fallback_sha_changed?(pack, data) do
-        update_sha_and_save_metadata(pack, data)
-      else
-        save_metadata(data, pack)
+      cond do
+        fallback_sha_changed?(pack, data) ->
+          update_sha_and_save_metadata(pack, data)
+
+          display_name_blank?(data) ->
+            remove_display_name_and_save_metadata(pack, data)
+
+          true ->
+            save_metadata(data, pack)
       end
     end
   end
@@ -630,14 +635,31 @@ defmodule Pleroma.Emoji.Pack do
     is_binary(data[:"fallback-src"]) and data[:"fallback-src"] != pack.pack["fallback-src"]
   end
 
+  defp display_name_blank?(data) do
+    String.trim(data[:"display-name"]) == "" or data[:"display-name"] == nil
+  end
+
+  defp remove_display_name_and_save_metadata(pack, data) do
+    data
+    |> Map.delete(:"display-name")
+    |> save_metadata(pack)
+  end
+
   defp update_sha_and_save_metadata(pack, data) do
     with {:ok, %{body: zip}} <- Pleroma.HTTP.get(data[:"fallback-src"]),
          :ok <- validate_has_all_files(pack, zip) do
       fallback_sha = :sha256 |> :crypto.hash(zip) |> Base.encode16()
 
-      data
-      |> Map.put("fallback-src-sha256", fallback_sha)
-      |> save_metadata(pack)
+      if display_name_blank?(data) do
+        data
+        |> Map.put("fallback-src-sha256", fallback_sha)
+
+        remove_display_name_and_save_metadata(pack, data)
+      else
+        data
+        |> Map.put("fallback-src-sha256", fallback_sha)
+        |> save_metadata(pack)
+      end
     end
   end
 

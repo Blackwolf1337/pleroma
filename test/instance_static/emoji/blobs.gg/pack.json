@@ -3,6 +3,7 @@
         "blank": "blank.png"
     },
     "pack": {
+        "display-name": "Test display name",
         "description": "Test description",
         "homepage": "https://pleroma.social",
         "license": "Test license",

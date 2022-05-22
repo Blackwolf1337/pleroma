@@ -20,6 +20,7 @@ defmodule Mix.Tasks.Pleroma.Emoji do
     Enum.each(manifest, fn {name, info} ->
       to_print = [
         {"Name", name},
+        {"Display name", info["display-name"]},
         {"Homepage", info["homepage"]},
         {"Description", info["description"]},
         {"License", info["license"]},
@@ -119,6 +120,7 @@ defmodule Mix.Tasks.Pleroma.Emoji do
 
         pack_json = %{
           pack: %{
+            "display-name" => pack["display_name"],
             "license" => pack["license"],
             "homepage" => pack["homepage"],
             "description" => pack["description"],
@@ -144,6 +146,7 @@ defmodule Mix.Tasks.Pleroma.Emoji do
         args,
         strict: [
           name: :string,
+          display_name: :string,
           license: :string,
           homepage: :string,
           description: :string,
@@ -154,6 +157,7 @@ defmodule Mix.Tasks.Pleroma.Emoji do
 
     proposed_name = Path.basename(src) |> Path.rootname()
     name = get_option(opts, :name, "Pack name:", proposed_name)
+    display_name = get_option(opts, :display_name, "Display name:")
     license = get_option(opts, :license, "License:")
     homepage = get_option(opts, :homepage, "Homepage:")
     description = get_option(opts, :description, "Description:")
@@ -190,6 +194,7 @@ defmodule Mix.Tasks.Pleroma.Emoji do
 
     pack_json = %{
       name => %{
+        display_name: display_name,
         license: license,
         homepage: homepage,
         description: description,
