@@ -1,8 +1,4 @@
-# Pleroma: A lightweight social networking server
-# Copyright © 2017-2022 Pleroma Authors <https://pleroma.social/>
-# SPDX-License-Identifier: AGPL-3.0-only
-
-defmodule Elixir.Pleroma.Repo.Migrations.Oban20ConfigChanges do
+defmodule Elixir.Pleroma.Repo.Migrations.Oban20ChangesRedux do
   use Ecto.Migration
   import Ecto.Query
   alias Pleroma.ConfigDB
@@ -17,14 +13,14 @@ defmodule Elixir.Pleroma.Repo.Migrations.Oban20ConfigChanges do
     if config_entry do
       %{value: value} = config_entry
       value =
-        case Keyword.fetch(value, :verbose) do
-          {:ok, log} -> Keyword.put_new(value, :log, log)
+        case Keyword.fetch(value, :log) do
+          {:ok, log} -> Keyword.put(value, :log, false)
           _ -> value
         end
-        |> Keyword.drop([:verbose, :prune])
 
       Ecto.Changeset.change(config_entry, %{value: value})
       |> Repo.update()
+
     end
   end
 end

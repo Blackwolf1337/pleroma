@@ -58,3 +58,10 @@ pleroma.iml
 # Editor temp files
 /*~
 /*#
+
+# if this is pleroma's home (probably shouldn't be)
+.bash-history
+.psql-history
+.cache
+.hex
+.mix
