@@ -158,6 +158,8 @@ defmodule Pleroma.Web.ActivityPub.SideEffects do
   # can update non-federating, non-activitypub settings as well.
   @impl true
   def handle(%{data: %{"type" => "Update", "object" => updated_object}} = object, meta) do
+    updated_object = Utils.inject_json_ld_context(object.data, updated_object)
+
     if changeset = Keyword.get(meta, :user_update_changeset) do
       changeset
       |> User.update_and_set_cache()

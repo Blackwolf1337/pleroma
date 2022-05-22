@@ -312,6 +312,7 @@ defmodule Pleroma.Web.MastodonAPI.AccountView do
     |> maybe_put_unread_notification_count(user, opts[:for])
     |> maybe_put_email_address(user, opts[:for])
     |> maybe_show_birthday(user, opts[:for])
+    |> maybe_put_avatar_style(user)
   end
 
   defp username_from_nickname(string) when is_binary(string) do
@@ -446,6 +447,15 @@ defmodule Pleroma.Web.MastodonAPI.AccountView do
 
   defp maybe_show_birthday(data, _, _) do
     data
+  end
+
+  defp maybe_put_avatar_style(data, %{avatar_style: avatar_style} = _user) do
+    if is_binary(avatar_style) and avatar_style != "" do
+      data
+      |> Kernel.put_in([:pleroma, :avatar_style], avatar_style)
+    else
+      data
+    end
   end
 
   defp image_url(%{"url" => [%{"href" => href} | _]}), do: href

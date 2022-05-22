@@ -144,7 +144,9 @@ defmodule Pleroma.Web.ActivityPub.UtilsTest do
                "https://www.w3.org/ns/activitystreams",
                "http://localhost:4001/schemas/litepub-0.1.jsonld",
                %{
-                 "@language" => "und"
+                 "@language" => "und",
+                 "pleroma" => Utils.pleroma_ns(),
+                 "avatarStyle" => "pleroma:avatarStyle"
                }
              ]
            }
@@ -557,6 +559,138 @@ defmodule Pleroma.Web.ActivityPub.UtilsTest do
 
       object = insert(:note, data: %{"reactions" => %{}})
       assert Utils.get_cached_emoji_reactions(object) == []
+    end
+  end
+
+  describe "parse_json_ld_context/1" do
+    test "it expands IRI schemes" do
+      object = %{
+        "@context" => [
+          "https://www.w3.org/ns/activitystreams",
+          "https://w3id.org/security/v1",
+          %{
+            "manuallyApprovesFollowers" => "as:manuallyApprovesFollowers",
+            "toot" => "http://joinmastodon.org/ns#",
+            "featured" => %{"@id" => "toot:featured", "@type" => "@id"},
+            "schema" => "http://schema.org#",
+            "PropertyValue" => "schema:PropertyValue",
+            "misskey" => "https://misskey-hub.net/ns#",
+            "isCat" => "misskey:isCat"
+          }
+        ]
+      }
+
+      assert Utils.parse_json_ld_context(object) == %{
+               "as:manuallyApprovesFollowers" => [
+                 "manuallyApprovesFollowers",
+                 "as:manuallyApprovesFollowers"
+               ],
+               "http://joinmastodon.org/ns#" => ["toot", "http://joinmastodon.org/ns#"],
+               "http://joinmastodon.org/ns#featured" => [
+                 "featured",
+                 "http://joinmastodon.org/ns#featured",
+                 "toot:featured"
+               ],
+               "http://schema.org#" => ["schema", "http://schema.org#"],
+               "http://schema.org#PropertyValue" => [
+                 "PropertyValue",
+                 "http://schema.org#PropertyValue",
+                 "schema:PropertyValue"
+               ],
+               "https://misskey-hub.net/ns#" => ["misskey", "https://misskey-hub.net/ns#"],
+               "https://misskey-hub.net/ns#isCat" => [
+                 "isCat",
+                 "https://misskey-hub.net/ns#isCat",
+                 "misskey:isCat"
+               ]
+             }
+    end
+  end
+
+  describe "lookup_json_ld_key/3" do
+    test "it gets the correct value" do
+      object = %{
+        "@context" => [
+          "https://www.w3.org/ns/activitystreams",
+          "https://w3id.org/security/v1",
+          %{
+            "manuallyApprovesFollowers" => "as:manuallyApprovesFollowers",
+            "toot" => "http://joinmastodon.org/ns#",
+            "featured" => %{"@id" => "toot:featured", "@type" => "@id"},
+            "schema" => "http://schema.org#",
+            "PropertyValue" => "schema:PropertyValue",
+            "misskey" => "https://misskey-hub.net/ns#",
+            "isCat" => "misskey:isCat"
+          }
+        ],
+        "featured" => "https://example.com/featured",
+        "isCat" => true
+      }
+
+      context = Utils.parse_json_ld_context(object)
+
+      assert {:ok, "https://example.com/featured"} =
+               Utils.lookup_json_ld_key(object, context, "http://joinmastodon.org/ns#featured")
+
+      assert {:ok, true} =
+               Utils.lookup_json_ld_key(object, context, "https://misskey-hub.net/ns#isCat")
+
+      assert {:not_found, nil} =
+               Utils.lookup_json_ld_key(object, context, "https://misskey-hub.net/ns#random")
+
+      assert {:not_found, nil} =
+               Utils.lookup_json_ld_key(object, context, "http://schema.org#PropertyValue")
+    end
+
+    test "it works with alternate property names" do
+      object = %{
+        "@context" => [
+          "https://www.w3.org/ns/activitystreams",
+          "https://w3id.org/security/v1",
+          %{
+            "toot" => "http://joinmastodon.org/ns#",
+            "featured" => %{"@id" => "toot:featured", "@type" => "@id"}
+          }
+        ]
+      }
+
+      context = Utils.parse_json_ld_context(object)
+
+      assert {:ok, "https://example.com/featured"} =
+               Utils.lookup_json_ld_key(
+                 %{"featured" => "https://example.com/featured"},
+                 context,
+                 "http://joinmastodon.org/ns#featured"
+               )
+
+      assert {:ok, "https://example.com/featured"} =
+               Utils.lookup_json_ld_key(
+                 %{"toot:featured" => "https://example.com/featured"},
+                 context,
+                 "http://joinmastodon.org/ns#featured"
+               )
+
+      assert {:ok, "https://example.com/featured"} =
+               Utils.lookup_json_ld_key(
+                 %{"http://joinmastodon.org/ns#featured" => "https://example.com/featured"},
+                 context,
+                 "http://joinmastodon.org/ns#featured"
+               )
+    end
+
+    test "it works with full names and do not need a context" do
+      object = %{
+        "@context" => []
+      }
+
+      context = Utils.parse_json_ld_context(object)
+
+      assert {:ok, "https://example.com/featured"} =
+               Utils.lookup_json_ld_key(
+                 %{"http://joinmastodon.org/ns#featured" => "https://example.com/featured"},
+                 context,
+                 "http://joinmastodon.org/ns#featured"
+               )
     end
   end
 end

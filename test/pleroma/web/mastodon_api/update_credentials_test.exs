@@ -390,6 +390,31 @@ defmodule Pleroma.Web.MastodonAPI.UpdateCredentialsTest do
       assert user_data["source"]["pleroma"]["show_birthday"] == true
     end
 
+    test "updates avatar style", %{conn: conn} do
+      res =
+        patch(conn, "/api/v1/accounts/update_credentials", %{
+          "avatar_style" => "foo"
+        })
+
+      assert user_data = json_response_and_validate_schema(res, 200)
+      assert user_data["pleroma"]["avatar_style"] == "foo"
+    end
+
+    test "removes avatar style" do
+      user = insert(:user, %{avatar_style: "foo"})
+      %{conn: conn} = oauth_access(["write:accounts"], user: user)
+
+      res =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> patch("/api/v1/accounts/update_credentials", %{
+          "avatar_style" => ""
+        })
+
+      assert user_data = json_response_and_validate_schema(res, 200)
+      refute Map.has_key?(user_data["pleroma"], "avatar_style")
+    end
+
     test "emojis in fields labels", %{conn: conn} do
       fields = [
         %{"name" => ":firefox:", "value" => "is best 2hu"},

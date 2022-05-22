@@ -107,16 +107,127 @@ defmodule Pleroma.Web.ActivityPub.Utils do
     end
   end
 
+  def pleroma_ns do
+    "https://docs-develop.pleroma.social/backend/ns#"
+  end
+
   def make_json_ld_header do
     %{
       "@context" => [
         "https://www.w3.org/ns/activitystreams",
         "#{Endpoint.url()}/schemas/litepub-0.1.jsonld",
         %{
-          "@language" => "und"
+          "@language" => "und",
+          "pleroma" => pleroma_ns(),
+          "avatarStyle" => "pleroma:avatarStyle"
         }
       ]
     }
+  end
+
+  def parse_json_ld_context(object) do
+    table = parse_json_ld_context_impl(Map.get(object, "@context", []), %{})
+
+    Map.keys(table)
+    |> Enum.reduce(%{}, fn key, acc ->
+      [full | short_forms] = table[key]
+      Map.put(acc, full, Map.get(acc, full, []) ++ [key, full | short_forms])
+    end)
+  end
+
+  defp parse_json_ld_context_impl([context | tail], acc) when is_map(context) do
+    get_definition = fn value ->
+      maybe_string =
+        if is_map(value) do
+          Map.get(value, "@id", "")
+        else
+          value
+        end
+
+      if is_binary(maybe_string) do
+        maybe_string
+      else
+        ""
+      end
+    end
+
+    next =
+      Map.keys(context)
+      |> Enum.reduce(acc, fn key, acc ->
+        definition_string = get_definition.(context[key])
+        parts = String.split(definition_string, ":", parts: 2)
+
+        expanded =
+          if length(parts) == 1 do
+            definition_string
+          else
+            [scheme, rest] = parts
+            scheme_defs = Map.get(acc, scheme, [])
+
+            scheme_def =
+              if scheme_defs == [] do
+                get_definition.(Map.get(context, scheme, scheme <> ":"))
+              else
+                Enum.at(scheme_defs, 0)
+              end
+
+            scheme_def <> rest
+          end
+
+        # Expand it one time only
+        # for example, {"pleroma": pleroma_ns(), "xxx": "pleroma:xxx"}
+        # is turned into: ("xxx") => ["pleroma:xxx", pleroma_ns() <> "xxx"]
+        if definition_string == expanded do
+          Map.put(acc, key, [expanded])
+        else
+          Map.put(acc, key, [expanded, definition_string])
+        end
+      end)
+
+    parse_json_ld_context_impl(tail, next)
+  end
+
+  defp parse_json_ld_context_impl([_ | tail], acc) do
+    parse_json_ld_context_impl(tail, acc)
+  end
+
+  defp parse_json_ld_context_impl([], acc) do
+    acc
+  end
+
+  defp parse_json_ld_context_impl(context, acc) do
+    parse_json_ld_context_impl([context], acc)
+  end
+
+  def lookup_json_ld_key(object, context, key) do
+    attr_names = Map.get(context, key, [key])
+
+    if is_nil(attr_names) do
+      {:not_found, nil}
+    else
+      attr_names
+      |> Enum.reduce_while({:not_found, nil}, fn name, _acc ->
+        if Map.has_key?(object, name) do
+          {:halt, {:ok, Map.get(object, name)}}
+        else
+          {:cont, {:not_found, nil}}
+        end
+      end)
+    end
+  end
+
+  def inject_json_ld_context(matrix_object, embedded_object) do
+    to_list_like = fn
+      list when is_list(list) -> list
+      atom -> [atom]
+    end
+
+    merged_json_ld_context =
+      to_list_like.(Map.get(matrix_object, "@context", [])) ++
+        to_list_like.(Map.get(embedded_object, "@context", []))
+
+    embedded_object
+    |> Map.put("@context", merged_json_ld_context)
   end
 
   def make_date do

@@ -17,6 +17,7 @@ defmodule Pleroma.Web.ActivityPub.SideEffectsTest do
   alias Pleroma.Web.ActivityPub.ActivityPub
   alias Pleroma.Web.ActivityPub.Builder
   alias Pleroma.Web.ActivityPub.SideEffects
+  alias Pleroma.Web.ActivityPub.Utils
   alias Pleroma.Web.CommonAPI
 
   import Mock
@@ -137,6 +138,75 @@ defmodule Pleroma.Web.ActivityPub.SideEffectsTest do
       {:ok, _, _} = SideEffects.handle(update, user_update_changeset: changeset)
       user = User.get_by_id(user.id)
       assert user.default_scope == "direct"
+    end
+
+    test "it updates avatar_style" do
+      user = insert(:user, local: false)
+
+      {:ok, update_data, []} =
+        Builder.update(
+          user,
+          Utils.make_json_ld_header()
+          |> Map.merge(%{
+            "id" => user.ap_id,
+            "name" => "new name",
+            "avatarStyle" => "foo"
+          })
+        )
+
+      {:ok, update, _meta} = ActivityPub.persist(update_data, local: true)
+
+      {:ok, _, _} = SideEffects.handle(update)
+      user = User.get_by_id(user.id)
+
+      assert user.avatar_style == "foo"
+    end
+
+    test "it updates avatar_style with matrix context in Update activity" do
+      user = insert(:user, local: false)
+
+      {:ok, update_data, []} =
+        Builder.update(
+          user,
+          %{
+            "id" => user.ap_id,
+            "name" => "new name",
+            "avatarStyle" => "foo"
+          }
+        )
+
+      update_data =
+        update_data
+        |> Map.merge(Utils.make_json_ld_header())
+
+      {:ok, update, _meta} = ActivityPub.persist(update_data, local: true)
+
+      {:ok, _, _} = SideEffects.handle(update)
+      user = User.get_by_id(user.id)
+
+      assert user.avatar_style == "foo"
+    end
+
+    test "it removes avatar_style" do
+      user = insert(:user, %{local: false, avatar_style: "foo"})
+
+      assert user.avatar_style == "foo"
+
+      {:ok, update_data, []} =
+        Builder.update(
+          user,
+          %{
+            "id" => user.ap_id,
+            "name" => "new name"
+          }
+        )
+
+      {:ok, update, _meta} = ActivityPub.persist(update_data, local: true)
+
+      {:ok, _, _} = SideEffects.handle(update)
+      user = User.get_by_id(user.id)
+
+      assert user.avatar_style == nil
     end
   end
 

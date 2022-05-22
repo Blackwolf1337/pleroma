@@ -528,6 +528,32 @@ defmodule Pleroma.Web.MastodonAPI.AccountViewTest do
     end
   end
 
+  describe "show avatar style" do
+    test "if the user has set an avatar style" do
+      user = insert(:user, %{avatar_style: "foo"})
+
+      result =
+        AccountView.render(
+          "show.json",
+          %{user: user, for: user}
+        )
+
+      assert get_in(result, [:pleroma, :avatar_style]) == "foo"
+    end
+
+    test "if the user has not set an avatar style" do
+      user = insert(:user)
+
+      result =
+        AccountView.render(
+          "show.json",
+          %{user: user, for: user}
+        )
+
+      assert get_in(result, [:pleroma, :avatar_style]) == nil
+    end
+  end
+
   describe "follow requests counter" do
     test "shows zero when no follow requests are pending" do
       user = insert(:user)

@@ -1459,6 +1459,8 @@ defmodule Pleroma.Web.ActivityPub.ActivityPub do
   defp normalize_image(_), do: nil
 
   defp object_to_user_data(data) do
+    json_ld_context = parse_json_ld_context(data)
+
     fields =
       data
       |> Map.get("attachment", [])
@@ -1513,6 +1515,15 @@ defmodule Pleroma.Web.ActivityPub.ActivityPub do
 
     show_birthday = !!birthday
 
+    avatar_style =
+      case lookup_json_ld_key(data, json_ld_context, pleroma_ns() <> "avatarStyle") do
+        {:ok, style} when is_binary(style) ->
+          style
+
+        _ ->
+          nil
+      end
+
     user_data = %{
       ap_id: data["id"],
       uri: get_actor_url(data["url"]),
@@ -1537,7 +1548,8 @@ defmodule Pleroma.Web.ActivityPub.ActivityPub do
       accepts_chat_messages: accepts_chat_messages,
       pinned_objects: pinned_objects,
       birthday: birthday,
-      show_birthday: show_birthday
+      show_birthday: show_birthday,
+      avatar_style: avatar_style
     }
 
     # nickname can be nil because of virtual actors
