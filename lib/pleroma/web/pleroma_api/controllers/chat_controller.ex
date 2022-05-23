@@ -29,7 +29,9 @@ defmodule Pleroma.Web.PleromaAPI.ChatController do
            :create,
            :mark_as_read,
            :mark_message_as_read,
-           :delete_message
+           :delete_message,
+           :pin,
+           :unpin
          ]
   )
 
@@ -164,7 +166,15 @@ defmodule Pleroma.Web.PleromaAPI.ChatController do
     user_id
     |> Chat.for_user_query()
     |> where([c], c.recipient not in ^exclude_users)
+    |> restrict_pinned(params)
   end
+
+  defp restrict_pinned(query, %{pinned: true}) do
+    query
+    |> where([c], c.pinned == true)
+  end
+
+  defp restrict_pinned(query, _), do: query
 
   def create(%{assigns: %{user: user}} = conn, %{id: id}) do
     with %User{ap_id: recipient} <- User.get_cached_by_id(id),
@@ -175,6 +185,20 @@ defmodule Pleroma.Web.PleromaAPI.ChatController do
 
   def show(%{assigns: %{user: user}} = conn, %{id: id}) do
     with {:ok, chat} <- Chat.get_by_user_and_id(user, id) do
+      render(conn, "show.json", chat: chat)
+    end
+  end
+
+  def pin(%{assigns: %{user: user}} = conn, %{id: id}) do
+    with {:ok, chat} <- Chat.get_by_user_and_id(user, id),
+         {:ok, chat} <- Chat.pin(chat) do
+      render(conn, "show.json", chat: chat)
+    end
+  end
+
+  def unpin(%{assigns: %{user: user}} = conn, %{id: id}) do
+    with {:ok, chat} <- Chat.get_by_user_and_id(user, id),
+         {:ok, chat} <- Chat.unpin(chat) do
       render(conn, "show.json", chat: chat)
     end
   end
