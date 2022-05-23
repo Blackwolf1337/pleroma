@@ -31,6 +31,7 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidator do
   alias Pleroma.Web.ActivityPub.ObjectValidators.EventValidator
   alias Pleroma.Web.ActivityPub.ObjectValidators.FollowValidator
   alias Pleroma.Web.ActivityPub.ObjectValidators.LikeValidator
+  alias Pleroma.Web.ActivityPub.ObjectValidators.ListenValidator
   alias Pleroma.Web.ActivityPub.ObjectValidators.QuestionValidator
   alias Pleroma.Web.ActivityPub.ObjectValidators.UndoValidator
   alias Pleroma.Web.ActivityPub.ObjectValidators.UpdateValidator
@@ -99,6 +100,19 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidator do
   end
 
   def validate(
+        %{"type" => "Listen", "object" => %{"type" => "Audio"} = object} = activity,
+        meta
+      ) do
+    with {:ok, activity} <-
+           activity
+           |> ListenValidator.cast_and_validate(meta)
+           |> Ecto.Changeset.apply_action(:insert) do
+      activity = stringify_keys(activity)
+      {:ok, activity, meta}
+    end
+  end
+
+  def validate(
         %{"type" => "Create", "object" => %{"type" => objtype} = object} = create_activity,
         meta
       )
@@ -143,7 +157,7 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidator do
 
   def validate(%{"type" => type} = object, meta)
       when type in ~w[Accept Reject Follow Update Like EmojiReact Announce
-      ChatMessage Answer] do
+      ChatMessage Answer Add Remove] do
     validator =
       case type do
         "Accept" -> AcceptRejectValidator
@@ -155,21 +169,13 @@ defmodule Pleroma.Web.ActivityPub.ObjectValidator do
         "Announce" -> AnnounceValidator
         "ChatMessage" -> ChatMessageValidator
         "Answer" -> AnswerValidator
+        "Add" -> AddRemoveValidator
+        "Remove" -> AddRemoveValidator
       end
 
     with {:ok, object} <-
            object
            |> validator.cast_and_validate()
-           |> Ecto.Changeset.apply_action(:insert) do
-      object = stringify_keys(object)
-      {:ok, object, meta}
-    end
-  end
-
-  def validate(%{"type" => type} = object, meta) when type in ~w(Add Remove) do
-    with {:ok, object} <-
-           object
-           |> AddRemoveValidator.cast_and_validate()
            |> Ecto.Changeset.apply_action(:insert) do
       object = stringify_keys(object)
       {:ok, object, meta}
