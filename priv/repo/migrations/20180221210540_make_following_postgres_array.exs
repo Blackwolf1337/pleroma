@@ -4,6 +4,7 @@
 
 defmodule Pleroma.Repo.Migrations.MakeFollowingPostgresArray do
   use Ecto.Migration
+  @disable_ddl_transaction true
 
   def up do
     alter table(:users) do

@@ -10,6 +10,6 @@ defmodule Pleroma.Repo.Migrations.AddTagsToUsers do
       add(:tags, {:array, :string})
     end
 
-    create_if_not_exists(index(:users, [:tags], using: :gin))
+    # create_if_not_exists(index(:users, [:tags], using: :gin))
   end
 end
