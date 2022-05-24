@@ -3,39 +3,15 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 
 defmodule Pleroma.Web.Metadata.Utils do
-  alias Pleroma.Activity
   alias Pleroma.Emoji
   alias Pleroma.Formatter
   alias Pleroma.HTML
 
-  def scrub_html_and_truncate(%{data: %{"content" => content}} = object) do
-    content
-    # html content comes from DB already encoded, decode first and scrub after
-    |> HtmlEntities.decode()
-    |> String.replace(~r/<br\s?\/?>/, " ")
-    |> Activity.HTML.get_cached_stripped_html_for_activity(object, "metadata")
-    |> Emoji.Formatter.demojify()
-    |> HtmlEntities.decode()
-    |> Formatter.truncate()
-  end
+  def filter_html_and_truncate(%{data: %{"content" => content}} = _object),
+    do: do_filter_html_and_truncate(content)
 
-  def scrub_html_and_truncate(content, max_length \\ 200) when is_binary(content) do
-    content
-    |> scrub_html
-    |> Emoji.Formatter.demojify()
-    |> HtmlEntities.decode()
-    |> Formatter.truncate(max_length)
-  end
-
-  def scrub_html(content) when is_binary(content) do
-    content
-    # html content comes from DB already encoded, decode first and scrub after
-    |> HtmlEntities.decode()
-    |> String.replace(~r/<br\s?\/?>/, " ")
-    |> HTML.strip_tags()
-  end
-
-  def scrub_html(content), do: content
+  def filter_html_and_truncate(content, max_length \\ nil),
+    do: do_filter_html_and_truncate(content, max_length)
 
   def user_name_string(user) do
     "#{user.name} " <>
@@ -51,5 +27,16 @@ defmodule Pleroma.Web.Metadata.Utils do
     Enum.find(supported_types, fn support_type ->
       String.starts_with?(media_type, support_type)
     end)
+  end
+
+  defp do_filter_html_and_truncate(content, max_length \\ 200) when is_binary(content) do
+    # html content comes from DB already encoded
+    content
+    |> HtmlEntities.decode()
+    |> Emoji.Formatter.demojify()
+    |> HTML.filter_tags(Pleroma.HTML.Scrubber.BreaksOnly)
+    |> HtmlEntities.decode()
+    |> String.replace(~r/<br\s?\/?>/, "&#10;&#13;")
+    |> Formatter.truncate(max_length)
   end
 end
