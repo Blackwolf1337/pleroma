@@ -101,12 +101,23 @@ defmodule Pleroma.Web.Router do
     plug(Pleroma.Web.Plugs.IdempotencyPlug)
   end
 
-  pipeline :require_privileged_staff do
-    plug(Pleroma.Web.Plugs.EnsureStaffPrivilegedPlug)
-  end
-
   pipeline :require_admin do
     plug(Pleroma.Web.Plugs.UserIsAdminPlug)
+  end
+
+  pipeline :require_privileged_role_user_deletion do
+    plug(:admin_api)
+    plug(Pleroma.Web.Plugs.EnsurePrivilegedPlug, :user_deletion)
+  end
+
+  pipeline :require_privileged_role_user_credentials do
+    plug(:admin_api)
+    plug(Pleroma.Web.Plugs.EnsurePrivilegedPlug, :user_credentials)
+  end
+
+  pipeline :require_privileged_role_statuses_read do
+    plug(:admin_api)
+    plug(Pleroma.Web.Plugs.EnsurePrivilegedPlug, :statuses_read)
   end
 
   pipeline :pleroma_html do
@@ -201,7 +212,6 @@ defmodule Pleroma.Web.Router do
 
     patch("/users/force_password_reset", AdminAPIController, :force_password_reset)
     get("/users/:nickname/credentials", AdminAPIController, :show_user_credentials)
-    patch("/users/:nickname/credentials", AdminAPIController, :update_user_credentials)
 
     get("/instance_document/:name", InstanceDocumentController, :show)
     patch("/instance_document/:name", InstanceDocumentController, :update)
@@ -231,14 +241,24 @@ defmodule Pleroma.Web.Router do
     post("/backups", AdminAPIController, :create_backup)
   end
 
-  # AdminAPI: admins and mods (staff) can perform these actions (if enabled by config)
+  # AdminAPI: admins and mods (staff) can perform these actions (if privileged by role)
   scope "/api/v1/pleroma/admin", Pleroma.Web.AdminAPI do
-    pipe_through([:admin_api, :require_privileged_staff])
+    pipe_through(:require_privileged_role_user_deletion)
 
     delete("/users", UserController, :delete)
+  end
+
+  # AdminAPI: admins and mods (staff) can perform these actions (if privileged by role)
+  scope "/api/v1/pleroma/admin", Pleroma.Web.AdminAPI do
+    pipe_through(:require_privileged_role_user_credentials)
 
     get("/users/:nickname/password_reset", AdminAPIController, :get_password_reset)
     patch("/users/:nickname/credentials", AdminAPIController, :update_user_credentials)
+  end
+
+  # AdminAPI: admins and mods (staff) can perform these actions (if privileged by role)
+  scope "/api/v1/pleroma/admin", Pleroma.Web.AdminAPI do
+    pipe_through(:require_privileged_role_statuses_read)
 
     get("/users/:nickname/statuses", AdminAPIController, :list_user_statuses)
     get("/users/:nickname/chats", AdminAPIController, :list_user_chats)
