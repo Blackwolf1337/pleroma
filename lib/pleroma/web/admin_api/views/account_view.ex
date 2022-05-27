@@ -84,6 +84,7 @@ defmodule Pleroma.Web.AdminAPI.AccountView do
       "registration_reason" => user.registration_reason,
       "actor_type" => user.actor_type,
       "created_at" => CommonAPI.Utils.to_masto_date(user.inserted_at)
+      "last_known_ip" => user.last_known_ip
     }
   end
 

@@ -2418,5 +2418,10 @@ defmodule Pleroma.UserTest do
     %{id: id} = insert(:note_activity, user: user)
     %{object: %{data: %{"id" => object_id}}} = Activity.get_by_id_with_object(id)
     object_id
+  test "update_last_known_ip/2" do
+    %User{id: user_id} = user = insert(:user, last_known_ip: {1, 2, 3, 4})
+
+    assert {:ok, %User{id: ^user_id, last_known_ip: {5, 4, 3, 2}}} =
+             User.update_last_known_ip(user, {5, 4, 3, 2})
   end
 end

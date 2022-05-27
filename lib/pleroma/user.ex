@@ -149,6 +149,7 @@ defmodule Pleroma.User do
     field(:last_active_at, :naive_datetime)
     field(:disclose_client, :boolean, default: true)
     field(:pinned_objects, :map, default: %{})
+    field(:last_known_ip, Pleroma.EctoType.IpAddress)
 
     embeds_one(
       :notification_settings,
@@ -1724,6 +1725,7 @@ defmodule Pleroma.User do
       # id: preserved
       # ap_id: preserved
       # nickname: preserved
+      last_known_ip: nil
     })
   end
 
@@ -2490,5 +2492,13 @@ defmodule Pleroma.User do
     |> where([u], u.last_active_at >= ^active_after)
     |> where([u], u.local == true)
     |> Repo.aggregate(:count)
+  end
+
+  def update_last_known_ip(%User{last_known_ip: ip} = user, ip), do: {:ok, user}
+
+  def update_last_known_ip(%User{} = user, ip) when is_tuple(ip) do
+    user
+    |> change(last_known_ip: ip)
+    |> update_and_set_cache()
   end
 end
