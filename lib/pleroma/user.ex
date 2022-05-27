@@ -1721,7 +1721,7 @@ defmodule Pleroma.User do
       fields: [],
       raw_fields: [],
       is_discoverable: false,
-      also_known_as: []
+      also_known_as: [],
       # id: preserved
       # ap_id: preserved
       # nickname: preserved
