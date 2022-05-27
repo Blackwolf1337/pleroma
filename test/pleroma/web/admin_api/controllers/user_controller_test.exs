@@ -910,6 +910,7 @@ defmodule Pleroma.Web.AdminAPI.UserControllerTest do
       "registration_reason" => nil,
       "actor_type" => "Person",
       "created_at" => CommonAPI.Utils.to_masto_date(user.inserted_at)
+      "last_known_ip" => nil
     }
     |> Map.merge(attrs)
   end

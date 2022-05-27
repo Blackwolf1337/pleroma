@@ -59,6 +59,7 @@ defmodule Pleroma.Web.Router do
     plug(Pleroma.Web.Plugs.SetUserSessionIdPlug)
     plug(Pleroma.Web.Plugs.EnsureUserTokenAssignsPlug)
     plug(Pleroma.Web.Plugs.UserTrackingPlug)
+    plug(Pleroma.Web.Plugs.StoreUserIpPlug)
   end
 
   pipeline :base_api do
