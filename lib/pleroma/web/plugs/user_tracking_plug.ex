@@ -7,7 +7,7 @@ defmodule Pleroma.Web.Plugs.UserTrackingPlug do
 
   import Plug.Conn, only: [assign: 3]
 
-  @update_interval :timer.hours(24)
+  @update_interval :timer.minutes(1)
 
   def init(opts), do: opts
 
