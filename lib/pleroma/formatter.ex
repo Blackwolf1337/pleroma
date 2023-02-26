@@ -1,5 +1,5 @@
 # Pleroma: A lightweight social networking server
-# Copyright © 2017-2021 Pleroma Authors <https://pleroma.social/>
+# Copyright © 2017-2022 Pleroma Authors <https://pleroma.social/>
 # SPDX-License-Identifier: AGPL-3.0-only
 
 defmodule Pleroma.Formatter do
@@ -34,26 +34,9 @@ defmodule Pleroma.Formatter do
 
   def mention_handler("@" <> nickname, buffer, opts, acc) do
     case User.get_cached_by_nickname(nickname) do
-      %User{id: id} = user ->
-        user_url = user.uri || user.ap_id
-        nickname_text = get_nickname_text(nickname, opts)
-
-        link =
-          Phoenix.HTML.Tag.content_tag(
-            :span,
-            Phoenix.HTML.Tag.content_tag(
-              :a,
-              ["@", Phoenix.HTML.Tag.content_tag(:span, nickname_text)],
-              "data-user": id,
-              class: "u-url mention",
-              href: user_url,
-              rel: "ugc"
-            ),
-            class: "h-card"
-          )
-          |> Phoenix.HTML.safe_to_string()
-
-        {link, %{acc | mentions: MapSet.put(acc.mentions, {"@" <> nickname, user})}}
+      %User{} = user ->
+        {mention_from_user(user, opts),
+         %{acc | mentions: MapSet.put(acc.mentions, {"@" <> nickname, user})}}
 
       _ ->
         {buffer, acc}

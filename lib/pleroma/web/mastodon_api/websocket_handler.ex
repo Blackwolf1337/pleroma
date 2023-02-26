@@ -1,5 +1,5 @@
 # Pleroma: A lightweight social networking server
-# Copyright © 2017-2021 Pleroma Authors <https://pleroma.social/>
+# Copyright © 2017-2022 Pleroma Authors <https://pleroma.social/>
 # SPDX-License-Identifier: AGPL-3.0-only
 
 defmodule Pleroma.Web.MastodonAPI.WebsocketHandler do
@@ -32,7 +32,8 @@ defmodule Pleroma.Web.MastodonAPI.WebsocketHandler do
           req
         end
 
-      {:cowboy_websocket, req, %{user: user, topic: topic, count: 0, timer: nil},
+      {:cowboy_websocket, req,
+       %{user: user, topic: topic, oauth_token: oauth_token, count: 0, timer: nil},
        %{idle_timeout: @timeout}}
     else
       {:error, :bad_topic} ->
@@ -49,12 +50,10 @@ defmodule Pleroma.Web.MastodonAPI.WebsocketHandler do
 
   def websocket_init(state) do
     Logger.debug(
-      "#{__MODULE__} accepted websocket connection for user #{
-        (state.user || %{id: "anonymous"}).id
-      }, topic #{state.topic}"
+      "#{__MODULE__} accepted websocket connection for user #{(state.user || %{id: "anonymous"}).id}, topic #{state.topic}"
     )
 
-    Streamer.add_socket(state.topic, state.user)
+    Streamer.add_socket(state.topic, state.oauth_token)
     {:ok, %{state | timer: timer()}}
   end
 
@@ -100,15 +99,17 @@ defmodule Pleroma.Web.MastodonAPI.WebsocketHandler do
     {:reply, :ping, %{state | timer: nil, count: 0}, :hibernate}
   end
 
+  def websocket_info(:close, state) do
+    {:stop, state}
+  end
+
   # State can be `[]` only in case we terminate before switching to websocket,
   # we already log errors for these cases in `init/1`, so just do nothing here
   def terminate(_reason, _req, []), do: :ok
 
   def terminate(reason, _req, state) do
     Logger.debug(
-      "#{__MODULE__} terminating websocket connection for user #{
-        (state.user || %{id: "anonymous"}).id
-      }, topic #{state.topic || "?"}: #{inspect(reason)}"
+      "#{__MODULE__} terminating websocket connection for user #{(state.user || %{id: "anonymous"}).id}, topic #{state.topic || "?"}: #{inspect(reason)}"
     )
 
     Streamer.remove_socket(state.topic)
